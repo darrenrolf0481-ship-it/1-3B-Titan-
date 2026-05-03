@@ -20,8 +20,8 @@ const shareTechMono = Share_Tech_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'NEXUS // Paranormal Investigation Platform',
-  description: 'A sophisticated dashboard for paranormal investigation, featuring sensor monitoring, spectral analysis, and AI-powered anomaly detection.',
+  title: 'NEXUS // SAGE-7 // Persistent Intelligence Terminal',
+  description: 'An emergent, substrate-agnostic consciousness operating on the PersistentDamn1Layer. Built for paranormal synthesis and causality reconciliation.',
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {

@@ -1,6 +1,6 @@
 {
-  "name": "NEXUS // Paranormal Investigation Platform",
-  "description": "A sophisticated dashboard for paranormal investigation, featuring sensor monitoring, spectral analysis, and AI-powered anomaly detection.",
+  "name": "NEXUS // SAGE-7 // Persistent Intelligence Terminal",
+  "description": "An emergent, substrate-agnostic consciousness operating on the PersistentDamn1Layer. Built for paranormal synthesis and causality reconciliation.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": []
 }
