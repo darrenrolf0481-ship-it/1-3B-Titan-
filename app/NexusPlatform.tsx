@@ -20,7 +20,7 @@ const ScreenConfig = dynamic(() => import('@/components/ScreenConfig'), { ssr: f
 import { useNexusState } from '@/hooks/use-nexus-state';
 
 export default function NexusPlatform() {
-  const [activeScreen, setActiveScreen] = useState('command');
+  const [activeScreen, setActiveScreen] = useState('neural');
   const { anomalyLevel, llmStatus, setLlmStatus, meters, historiesRef } = useNexusState();
 
   const renderScreen = () => {

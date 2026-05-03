@@ -22,7 +22,7 @@ const SCREENS = [
   { id: 'sensors', label: 'SENSOR ARRAY', icon: Activity, section: 'SCREENS', badge: 7 },
   { id: 'feeds', label: 'VISUAL FEEDS', icon: Video, section: 'SCREENS' },
   { id: 'evp', label: 'EVP STATION', icon: Mic2, section: 'SCREENS' },
-  { id: 'neural', label: 'NEURAL LINK', icon: Zap, section: 'TOOLS' },
+  { id: 'neural', label: 'NEXUS AI CHAT', icon: Zap, section: 'TOOLS' },
   { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
 ];
 

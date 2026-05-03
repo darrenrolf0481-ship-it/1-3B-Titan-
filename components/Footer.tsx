@@ -21,7 +21,7 @@ const SCREENS = [
   { id: 'sensors', label: 'SENSORS', icon: Activity },
   { id: 'feeds', label: 'FEEDS', icon: Video },
   { id: 'evp', label: 'EVP', icon: Mic2 },
-  { id: 'neural', label: 'NEURAL', icon: Zap },
+  { id: 'neural', label: 'CHAT AI', icon: Zap },
   { id: 'config', label: 'CONFIG', icon: Settings },
 ];
 
