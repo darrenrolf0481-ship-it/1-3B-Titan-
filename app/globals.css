@@ -1,8 +1,10 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
 
-@theme {
+:root {
   --font-orbitron: "Orbitron", sans-serif;
   --font-rajdhani: "Rajdhani", sans-serif;
   --font-mono: "Share Tech Mono", monospace;
@@ -17,7 +19,7 @@
     @apply border-border-subtle;
   }
   body {
-    @apply bg-void text-text-bright font-rajdhani;
+    @apply bg-void text-text-bright font-rajdhani antialiased;
   }
 }
 
