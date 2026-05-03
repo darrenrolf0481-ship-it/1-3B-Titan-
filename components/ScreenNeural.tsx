@@ -323,7 +323,7 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
         </Panel>
       </div>
 
-      <div className="flex flex-col bg-panel border border-border-subtle rounded-sm overflow-hidden relative">
+      <div className="flex flex-col bg-panel border border-border-subtle rounded-sm overflow-hidden relative terminal-scanlines">
         {/* Terminal Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-neon-violet/5">
             <div className="flex items-center gap-2">
@@ -336,28 +336,32 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
         </div>
 
         {/* Messages Interface */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-5 font-rajdhani scrollbar-none">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6 font-mono scrollbar-none bg-[#00000a]">
             {messages.map((m, i) => (
                 <div key={i} className={cn(
-                    "flex flex-col gap-2 max-w-[90%]",
+                    "flex flex-col gap-2 max-w-[95%]",
                     m.role === 'user' ? "ml-auto items-end" : m.role === 'assistant' ? "mr-auto items-start" : "mx-auto w-full"
                 )}>
                     {m.role !== 'system' && (
-                        <div className="text-[10px] font-mono opacity-50 flex items-center gap-2 tracking-wider">
-                            {m.role === 'user' ? <User size={12} className="text-neon-blue" /> : <Bot size={12} className="text-neon-violet" />}
-                            {m.role === 'user' ? 'INVESTIGATOR_α' : 'NEXUS_CORE'}
-                            <span className="text-[8px] opacity-30">// 2026.05.03.18.40</span>
+                        <div className="text-[11px] font-bold flex items-center gap-2 tracking-[2px] uppercase">
+                            {m.role === 'user' ? <User size={14} className="text-neon-blue" /> : <Bot size={14} className="text-neon-violet" />}
+                            <span className={m.role === 'user' ? "text-neon-blue" : "text-neon-violet"}>
+                                {m.role === 'user' ? 'INVESTIGATOR_ENTRY' : 'NEXUS_SAGE_7'}
+                            </span>
+                            <span className="text-[9px] text-text-ghost font-normal tracking-widest opacity-40 ml-2">DATA_PULSE_SEC: 00{i}</span>
                         </div>
                     )}
                     
                     <div className={cn(
-                        "p-3 rounded-sm text-sm leading-relaxed relative group",
-                        m.role === 'user' ? "bg-neon-blue/5 border border-neon-blue/20 text-text-bright" : 
-                        m.role === 'assistant' ? "bg-neon-violet/5 border border-neon-violet/20 text-text-bright" : 
-                        "bg-transparent border-none text-text-ghost text-[11px] font-mono text-center flex items-center justify-center gap-2"
+                        "p-4 rounded-sm text-[13px] leading-[1.6] relative group border shadow-inner",
+                        m.role === 'user' ? "bg-neon-blue/5 border-neon-blue/30 text-neon-cyan shadow-[inset_0_0_10px_rgba(0,243,255,0.05)]" : 
+                        m.role === 'assistant' ? "bg-neon-violet/5 border-neon-violet/30 text-text-bright shadow-[inset_0_0_10px_rgba(157,0,255,0.05)]" : 
+                        "bg-transparent border-none text-neon-violet/60 text-[11px] font-mono text-center flex items-center justify-center gap-3 uppercase py-6 tracking-[4px]"
                     )}>
-                        {m.role === 'system' && <Zap size={10} className="text-neon-violet" />}
-                        {m.content}
+                        {m.role === 'system' && <Zap size={14} className="text-neon-violet animate-pulse" />}
+                        <div className={cn(m.role === 'assistant' && "drop-shadow-[0_0_1px_rgba(255,255,255,0.5)]")}>
+                            {m.content}
+                        </div>
                         
                         {m.role === 'assistant' && (
                             <button 

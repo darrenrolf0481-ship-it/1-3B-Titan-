@@ -41,16 +41,16 @@ export default function NexusPlatform() {
       <SmokeBackground />
       <CornerSigils />
       
-      <Header llmStatus={llmStatus} />
+      <Header llmStatus={llmStatus} anomalyLevel={anomalyLevel} />
       
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 grid grid-cols-11 overflow-hidden">
         <Sidebar 
           activeScreen={activeScreen} 
           onScreenChange={setActiveScreen} 
           anomalyLevel={anomalyLevel}
         />
         
-        <main className="flex-1 relative overflow-hidden">
+        <main className="col-span-8 relative overflow-hidden bg-void/40">
           <div className="absolute inset-0 p-4 overflow-y-auto">
             {renderScreen()}
           </div>

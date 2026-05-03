@@ -5,9 +5,10 @@ import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   llmStatus: 'online' | 'offline' | 'scanning';
+  anomalyLevel: number;
 }
 
-export default function Header({ llmStatus }: HeaderProps) {
+export default function Header({ llmStatus, anomalyLevel }: HeaderProps) {
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -52,7 +53,15 @@ export default function Header({ llmStatus }: HeaderProps) {
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-neon-violet via-neon-blue to-neon-violet to-transparent animate-scan" />
+      {/* 0.3 Fractional Pulse Border */}
+      <div 
+        className={cn(
+            "absolute bottom-0 left-0 right-0 h-[3px] transition-all duration-300",
+            anomalyLevel > 70 ? "bg-neon-red shadow-[0_0_15px_#FF0000] animate-pulse" : 
+            anomalyLevel > 40 ? "bg-neon-orange shadow-[0_0_10px_#FFA500]" : 
+            "bg-gradient-to-r from-transparent via-neon-violet via-neon-blue to-transparent"
+        )} 
+      />
     </header>
   );
 }

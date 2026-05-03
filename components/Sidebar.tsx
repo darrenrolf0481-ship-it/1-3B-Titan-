@@ -30,7 +30,7 @@ export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: 
   const sections = Array.from(new Set(SCREENS.map(s => s.section)));
 
   return (
-    <nav className="relative flex flex-col w-[220px] py-3 bg-gradient-to-b from-[#060614]/97 to-[#04040f]/98 border-r border-border-subtle overflow-y-auto">
+    <nav className="relative flex flex-col col-span-3 py-3 bg-gradient-to-b from-[#060614]/97 to-[#04040f]/98 border-r border-border-subtle overflow-y-auto">
       {sections.map(section => (
         <div key={section} className="mb-4">
           <div className="font-mono text-[9px] text-text-ghost tracking-[3px] px-4 py-2 border-none uppercase">

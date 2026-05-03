@@ -145,6 +145,9 @@ const SensorCard = memo(function SensorCard({ def, valueRef, historyRef, isExpan
 
 export default function ScreenSensors({ externalHistoryRef }: { externalHistoryRef?: React.RefObject<Record<string, Float32Array>> }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [spectralRange, setSpectralRange] = useState<[number, number]>([0, 22000]);
+  const [spectralResolution, setSpectralResolution] = useState(128);
+  const [colorMapping, setColorMapping] = useState<'cyan' | 'magma' | 'plasma' | 'viridis'>('cyan');
 
   // Use typed arrays for history to save memory and avoid React overhead
   const localHistoryRef = useRef<Record<string, Float32Array>>(
@@ -187,24 +190,181 @@ export default function ScreenSensors({ externalHistoryRef }: { externalHistoryR
   }, [historyRef]);
 
   return (
-    <div className="space-y-3">
-      <div className="font-orbitron text-[10px] tracking-[4px] text-neon-violet flex items-center gap-2 mb-4">
-        SENSOR ARRAY
-        <span className="text-[9px] text-text-ghost tracking-[2px]"> {"// REAL-TIME TELEMETRY"}</span>
-      </div>
-      
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {SENSOR_DEFS.map((s) => (
-          <SensorCard 
-            key={s.id} 
-            def={s} 
-            valueRef={valueRef} 
-            historyRef={historyRef}
-            isExpanded={expandedId === s.id} 
-            onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} 
-          />
-        ))}
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex-1 space-y-3">
+          <div className="font-orbitron text-[10px] tracking-[4px] text-neon-violet flex items-center gap-2 mb-2">
+            SENSOR ARRAY
+            <span className="text-[9px] text-text-ghost tracking-[2px]"> {"// REAL-TIME TELEMETRY"}</span>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-3">
+            {SENSOR_DEFS.map((s) => (
+              <SensorCard 
+                key={s.id} 
+                def={s} 
+                valueRef={valueRef} 
+                historyRef={historyRef}
+                isExpanded={expandedId === s.id} 
+                onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} 
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Spectral Analysis Panel */}
+        <div className="w-full lg:w-[320px] space-y-4">
+            <div className="nexus-panel p-4 flex flex-col h-full">
+                <div className="nexus-panel-glow" />
+                <div className="font-orbitron text-[10px] font-bold text-neon-blue tracking-[3px] uppercase mb-4 flex justify-between items-center">
+                    SPECTRAL ANALYSIS
+                    <div className="w-2 h-2 rounded-full bg-neon-blue animate-pulse shadow-[0_0_8px_#00F3FF]" />
+                </div>
+
+                <div className="flex-1 min-h-[300px] mb-4 relative bg-black/40 border border-border-subtle rounded-sm overflow-hidden">
+                    <SpectralWaterfall 
+                        resolution={spectralResolution} 
+                        colorMap={colorMapping} 
+                        freqRange={spectralRange}
+                    />
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                            <label className="text-[9px] font-mono text-text-ghost tracking-widest uppercase">Freq Range</label>
+                            <span className="text-[9px] font-mono text-neon-blue">{spectralRange[0]}hz - {spectralRange[1]}hz</span>
+                        </div>
+                        <input 
+                            type="range" 
+                            min="0" 
+                            max="44100" 
+                            step="100"
+                            value={spectralRange[1]}
+                            onChange={(e) => setSpectralRange([0, parseInt(e.target.value)])}
+                            className="w-full accent-neon-blue cursor-pointer"
+                        />
+                    </div>
+
+                    <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                            <label className="text-[9px] font-mono text-text-ghost tracking-widest uppercase">Resolution</label>
+                            <span className="text-[9px] font-mono text-neon-blue">{spectralResolution} samples</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            {[64, 128, 256].map(res => (
+                                <button
+                                    key={res}
+                                    onClick={() => setSpectralResolution(res)}
+                                    className={cn(
+                                        "py-1 border rounded-sm font-mono text-[9px] transition-all",
+                                        spectralResolution === res ? "border-neon-blue text-neon-blue bg-neon-blue/10" : "border-border-subtle text-text-ghost"
+                                    )}
+                                >
+                                    {res}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-mono text-text-ghost tracking-widest uppercase block mb-1.5">Color Mapping</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {['cyan', 'magma', 'plasma', 'viridis'].map(map => (
+                                <button
+                                    key={map}
+                                    onClick={() => setColorMapping(map as any)}
+                                    className={cn(
+                                        "py-1 border rounded-sm font-mono text-[9px] transition-all uppercase tracking-widest",
+                                        colorMapping === map ? "border-neon-violet text-neon-violet bg-neon-violet/10" : "border-border-subtle text-text-ghost"
+                                    )}
+                                >
+                                    {map}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
       </div>
     </div>
   );
+}
+
+function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: number, colorMap: string, freqRange: [number, number] }) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const dataRef = useRef<Float32Array[]>([]);
+
+    useEffect(() => {
+        if (!canvasRef.current) return;
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d')!;
+        
+        const draw = () => {
+            if (typeof document !== 'undefined' && document.hidden) {
+                requestAnimationFrame(draw);
+                return;
+            }
+
+            const w = canvas.width = canvas.offsetWidth;
+            const h = canvas.height = canvas.offsetHeight;
+            
+            // Generate new spectrum line
+            const newLine = new Float32Array(resolution);
+            for (let i = 0; i < resolution; i++) {
+                // Mock peak identification
+                const base = Math.random() * 0.2;
+                const peak1 = Math.exp(-Math.pow(i - resolution * 0.2, 2) / 20) * (0.4 + Math.random() * 0.3);
+                const peak2 = Math.exp(-Math.pow(i - resolution * 0.7, 2) / 50) * (0.2 + Math.random() * 0.2);
+                newLine[i] = Math.min(1, base + peak1 + peak2);
+            }
+            
+            dataRef.current.unshift(newLine);
+            if (dataRef.current.length > h) {
+                dataRef.current.pop();
+            }
+
+            ctx.clearRect(0, 0, w, h);
+            
+            const bw = w / resolution;
+            dataRef.current.forEach((line, y) => {
+                line.forEach((val, x) => {
+                    ctx.fillStyle = getSpectralColor(val, colorMap as any);
+                    ctx.fillRect(x * bw, y, bw + 1, 1);
+                });
+            });
+
+            requestAnimationFrame(draw);
+        };
+
+        const handle = requestAnimationFrame(draw);
+        return () => cancelAnimationFrame(handle);
+    }, [resolution, colorMap]);
+
+    return <canvas ref={canvasRef} className="w-full h-full block" />;
+}
+
+function getSpectralColor(val: number, map: 'cyan' | 'magma' | 'plasma' | 'viridis') {
+    if (map === 'cyan') {
+        const intensity = Math.floor(val * 255);
+        return `rgba(0, ${intensity}, ${intensity}, ${val + 0.1})`;
+    }
+    if (map === 'magma') {
+        const r = Math.floor(val * 255);
+        const g = Math.floor(val * 100);
+        const b = Math.floor(val * 50);
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+    if (map === 'plasma') {
+        const r = Math.floor(val * 255);
+        const g = Math.floor((1 - val) * 255);
+        const b = 255;
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+    // Viridis approx
+    const r = Math.floor((1-val) * 60 + val * 253);
+    const g = Math.floor((1-val) * 1 + val * 231);
+    const b = Math.floor((1-val) * 78 + val * 37);
+    return `rgb(${r}, ${g}, ${b})`;
 }
