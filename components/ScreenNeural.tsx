@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Zap, Send, Bot, User, Mic, Paperclip, Image as ImageIcon, FileText, X, Music, Video, Loader2, MessageSquare, Shield, Lock, Wifi } from 'lucide-react';

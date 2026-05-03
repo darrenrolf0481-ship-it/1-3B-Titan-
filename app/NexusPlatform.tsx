@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect, lazy, Suspense } from 'react';
 import Starfield from '@/components/Starfield';
 import SmokeBackground from '@/components/SmokeBackground';
