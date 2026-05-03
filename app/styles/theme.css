@@ -1,0 +1,28 @@
+@theme {
+  --color-void: #000008;
+  --color-deep: #04040f;
+  --color-panel: #080818;
+  --color-panel2: #0b0b22;
+  --color-border-subtle: #1a1a4a;
+  --color-border-accent: #2a2a6a;
+  --color-neon-violet: #9b30ff;
+  --color-neon-blue: #00d4ff;
+  --color-neon-cyan: #00fff0;
+  --color-neon-orange: #ff6b1a;
+  --color-neon-gold: #ffaa00;
+  --color-neon-red: #ff2244;
+  --color-neon-green: #00ff88;
+  --color-neon-pink: #ff00aa;
+  --color-text-bright: #e8e8ff;
+  --color-text-dim: #6688aa;
+  --color-text-ghost: #334466;
+  
+  --font-orbitron: var(--font-orbitron);
+  --font-rajdhani: var(--font-rajdhani);
+  --font-mono: var(--font-mono);
+
+  /* Reusable Effect Primitives */
+  --glow-violet: 0 0 8px var(--color-neon-violet);
+  --glow-blue: 0 0 10px var(--color-neon-blue);
+  --border-glow: inset 0 0 4px rgba(155, 48, 255, 0.2);
+}

@@ -1,0 +1,29 @@
+@layer components {
+  .nexus-panel {
+    @apply bg-panel border border-border-subtle rounded-[4px] relative overflow-hidden;
+  }
+
+  .nexus-panel-glow {
+    @apply absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-neon-violet to-transparent opacity-50;
+  }
+
+  .nexus-panel-header {
+    @apply flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-neon-violet/4;
+  }
+
+  .nexus-panel-title {
+    @apply font-orbitron text-[10px] font-bold text-neon-violet tracking-[3px] uppercase;
+  }
+
+  .nexus-status-card {
+    @apply text-center p-2.5 rounded-[3px] border;
+  }
+
+  .nexus-button-secondary {
+    @apply bg-transparent border border-border-subtle rounded-[2px] transition-all cursor-pointer;
+  }
+
+  .nexus-input {
+    @apply bg-black/40 border border-border-subtle text-text-bright font-mono outline-none focus:border-neon-blue rounded-sm transition-colors;
+  }
+}

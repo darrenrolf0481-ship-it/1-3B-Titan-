@@ -1,0 +1,6 @@
+{
+  "name": "NEXUS // Paranormal Investigation Platform",
+  "description": "A sophisticated dashboard for paranormal investigation, featuring sensor monitoring, spectral analysis, and AI-powered anomaly detection.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": []
+}

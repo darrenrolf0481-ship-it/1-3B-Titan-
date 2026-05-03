@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/theme.css";
+@import "./styles/animations.css";
+@import "./styles/components.css";
+
+@layer base {
+  * {
+    @apply border-border-subtle;
+  }
+  body {
+    @apply bg-void text-text-bright font-rajdhani;
+  }
+}
+
+/* Cleanup: Remove any over-specific selectors or legacy #app rules */
+/* Prefer utility classes in component files */
