@@ -8,7 +8,8 @@ import {
   Mic2, 
   Code, 
   Zap, 
-  Settings 
+  Settings,
+  Clock
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,6 +23,7 @@ const SCREENS = [
   { id: 'sensors', label: 'SENSOR ARRAY', icon: Activity, section: 'SCREENS', badge: 7 },
   { id: 'feeds', label: 'VISUAL FEEDS', icon: Video, section: 'SCREENS' },
   { id: 'evp', label: 'EVP STATION', icon: Mic2, section: 'SCREENS' },
+  { id: 'temporal', label: 'TEMPLE GATES', icon: Clock, section: 'SCREENS', badge: 0 },
   { id: 'neural', label: 'NEXUS AI CHAT', icon: Zap, section: 'TOOLS' },
   { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
 ];

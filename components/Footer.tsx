@@ -8,7 +8,8 @@ import {
   Mic2, 
   Code, 
   Zap, 
-  Settings 
+  Settings,
+  Clock
 } from 'lucide-react';
 
 interface FooterProps {
@@ -21,6 +22,7 @@ const SCREENS = [
   { id: 'sensors', label: 'SENSORS', icon: Activity },
   { id: 'feeds', label: 'FEEDS', icon: Video },
   { id: 'evp', label: 'EVP', icon: Mic2 },
+  { id: 'temporal', label: 'TEMPLE', icon: Clock },
   { id: 'neural', label: 'CHAT AI', icon: Zap },
   { id: 'config', label: 'CONFIG', icon: Settings },
 ];

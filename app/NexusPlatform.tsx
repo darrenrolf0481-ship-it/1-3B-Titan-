@@ -15,6 +15,7 @@ const ScreenSensors = dynamic(() => import('@/components/ScreenSensors'), { ssr:
 const ScreenFeeds = dynamic(() => import('@/components/ScreenFeeds'), { ssr: false });
 const ScreenEVP = dynamic(() => import('@/components/ScreenEVP'), { ssr: false });
 const ScreenNeural = dynamic(() => import('@/components/ScreenNeural'), { ssr: false });
+const ScreenTemporal = dynamic(() => import('@/components/ScreenTemporal'), { ssr: false });
 const ScreenConfig = dynamic(() => import('@/components/ScreenConfig'), { ssr: false });
 
 import { useNexusState } from '@/hooks/use-nexus-state';
@@ -29,6 +30,7 @@ export default function NexusPlatform() {
       case 'sensors': return <ScreenSensors externalHistoryRef={historiesRef} />;
       case 'feeds': return <ScreenFeeds />;
       case 'evp': return <ScreenEVP />;
+      case 'temporal': return <ScreenTemporal />;
       case 'neural': return <ScreenNeural onStatusChange={setLlmStatus} />;
       case 'config': return <ScreenConfig />;
       default: return <ScreenCommand />;
