@@ -1,11 +1,11 @@
 import { cn } from '@/lib/utils';
-import { 
-  LayoutDashboard, 
-  Activity, 
-  Video, 
-  Mic2, 
-  Code, 
-  Zap, 
+import {
+  LayoutDashboard,
+  Activity,
+  Video,
+  Mic2,
+  Code,
+  Zap,
   Settings,
   Clock
 } from 'lucide-react';
