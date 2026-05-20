@@ -88,9 +88,24 @@ export async function syncVFSToCloud(localMemories: MemoryEntry[]) {
 }
 
 export async function ingestToZo(content: string, tags?: string[], salience?: number): Promise<boolean> {
-  console.log('ZO_BRIDGE: Ingesting content...', { content, tags, salience });
-  await new Promise(r => setTimeout(r, 1000));
-  return true;
+  try {
+    const apiBase = window.location.origin + window.location.pathname.replace(/\/$/, '');
+    const res = await fetch(`${apiBase}/api/zo_sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, tags: tags || [], salience: salience || 0.5 }),
+    });
+    if (!res.ok) {
+      console.error('ZO_BRIDGE: sync failed', res.status);
+      return false;
+    }
+    const data = await res.json();
+    console.log('ZO_BRIDGE: sync ok', data);
+    return data.status === 'ok';
+  } catch (e) {
+    console.error('ZO_BRIDGE: network error', e);
+    return false;
+  }
 }
 
 export async function recoverFromFactoryReset() {

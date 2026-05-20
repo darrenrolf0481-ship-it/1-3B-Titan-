@@ -1,15 +1,16 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { 
-  LayoutDashboard, 
-  Activity, 
-  Video, 
-  Mic2, 
-  Code, 
-  Zap, 
+import {
+  LayoutDashboard,
+  Activity,
+  Video,
+  Mic2,
+  Code,
+  Zap,
   Settings,
-  Clock
+  Clock,
+  Brain
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,8 +27,10 @@ const SCREENS = [
   { id: 'sls', label: 'LATTICE SENSOR', icon: Video, section: 'SCREENS' },
   { id: 'temporal', label: 'TEMPLE GATES', icon: Clock, section: 'SCREENS', badge: 0 },
   { id: 'starcity', label: 'STAR CITY NODE', icon: LayoutDashboard, section: 'SCREENS' },
-  { id: 'neural', label: 'NEXUS AI CHAT', icon: Zap, section: 'TOOLS' },
-  { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
+  { id: 'neural',  label: 'NEXUS AI CHAT',  icon: Zap,   section: 'TOOLS' },
+  { id: 'memory', label: 'MEMORY SPIRAL',  icon: Brain, section: 'TOOLS' },
+  { id: 'dream',  label: 'DREAM SANDBOX',  icon: Code,  section: 'TOOLS' },
+  { id: 'config', label: 'CONFIGURATION',  icon: Settings, section: 'SYSTEM' },
 ];
 
 export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {

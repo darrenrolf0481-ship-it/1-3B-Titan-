@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Save, Trash2, Shield, Settings, Activity, Zap, Volume2 } from 'lucide-react';
+import { Save, Trash2, Shield, Settings, Activity, Zap, Volume2, Brain } from 'lucide-react';
 import { useSage } from '@/lib/sage-context';
 import { starCityHandshake, syncVFSToCloud, recoverFromFactoryReset } from '@/core/sdk-bridge';
-import { rehydrateMemories } from '@/core/consensus-engine';
+import { rehydrateMemories, commitMemoriesToVFS } from '@/core/consensus-engine';
 import { getElevenKey, setElevenKey, getElevenVoice, setElevenVoice, speakText } from '@/lib/elevenlabs';
 
 export default function ScreenConfig() {
@@ -37,6 +37,53 @@ export default function ScreenConfig() {
         localUrl: config.localUrl
     });
 
+    const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (localConfig.engine !== 'local') return;
+        const apiBase = window.location.origin + window.location.pathname.replace(/\/$/, '');
+        fetch(`${apiBase}/api/ollama/models?url=${encodeURIComponent(localConfig.localUrl)}`)
+            .then(r => r.json())
+            .then(d => setOllamaModels((d.models || []).map((m: any) => m.name)))
+            .catch(() => {});
+    }, [localConfig.engine, localConfig.localUrl]);
+
+    const [newMemory, setNewMemory] = useState('');
+    const [memoryStatus, setMemoryStatus] = useState('');
+    const [memoryCount, setMemoryCount] = useState<number | null>(null);
+
+    useEffect(() => {
+        rehydrateMemories(0).then(mems => setMemoryCount(mems.length)).catch(() => {});
+    }, []);
+
+    const handleSaveMemory = async () => {
+        const content = newMemory.trim();
+        if (!content) return;
+        try {
+            await commitMemoriesToVFS([{
+                id: `manual_${Date.now()}`,
+                timestamp: Date.now(),
+                content,
+                summary: content.slice(0, 80),
+                tags: ['NOREPINEPHRINE', 'manual', 'merlin'],
+                salience: 1.0,
+                hash: content.length.toString(),
+                source: 'Merlin',
+                node: 'zo.computer',
+                status: 'fossilized' as const,
+                merlinOverride: true,
+                checksumVerified: true,
+            }]);
+            core.log(`Memory encoded: ${content.slice(0, 60)}…`, 'success', 'memory');
+            setNewMemory('');
+            setMemoryStatus('ENCODED');
+            setMemoryCount(c => (c ?? 0) + 1);
+            setTimeout(() => setMemoryStatus(''), 2500);
+        } catch (e: any) {
+            setMemoryStatus(`ERROR: ${e.message}`);
+        }
+    };
+
     const [toggles, setToggles] = useState({
         autoReconnect: true,
         sensorPrompt: true,
@@ -64,21 +111,6 @@ export default function ScreenConfig() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-8">
             <Panel icon={<Shield size={14} />} title="API CONFIGURATION">
                 <div className="space-y-4">
-                    <div className="text-[10px] font-orbitron text-neon-violet tracking-widest border-b border-border-subtle pb-2 mb-2">EXTERNAL PROVIDERS</div>
-                    <div className="flex gap-2 mb-2">
-                        {['gemini', 'local', 'puter'].map(e => (
-                            <button 
-                                key={e}
-                                onClick={() => setLocalConfig(prev => ({ ...prev, engine: e as any }))}
-                                className={cn(
-                                    "px-2 py-1 text-[8px] font-bold tracking-widest border rounded-sm flex-1 transition-all",
-                                    localConfig.engine === e ? "bg-neon-violet/20 border-neon-violet text-neon-violet" : "border-white/10 text-white/40"
-                                )}
-                            >
-                                {e.toUpperCase()}
-                            </button>
-                        ))}
-                    </div>
                     {localConfig.engine === 'gemini' && <Field label="GOOGLE API KEY (GEMINI)" placeholder="AIza..." type="password" />}
                     
                     <div className="pt-4 border-t border-border-subtle">
@@ -155,16 +187,62 @@ export default function ScreenConfig() {
 
             <Panel icon={<Settings size={14} />} title="LLM CORE SETTINGS">
                  <div className="space-y-4">
-                    <Field 
-                        label="ENDPOINT URL" 
-                        value={localConfig.localUrl} 
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-bold tracking-widest uppercase text-text-ghost">ENGINE</label>
+                        <div className="flex gap-2">
+                            {(['gemini', 'local', 'puter'] as const).map(e => (
+                                <button
+                                    key={e}
+                                    onClick={() => {
+                                        const defaultModels: Record<string, string> = {
+                                            gemini: 'gemini-2.0-flash',
+                                            local: 'gemma2:latest',
+                                            puter: 'openai/gpt-4o',
+                                        };
+                                        setLocalConfig(prev => ({ ...prev, engine: e, model: defaultModels[e] }));
+                                    }}
+                                    className={cn(
+                                        "px-2 py-1 text-[8px] font-bold tracking-widest border rounded-sm flex-1 transition-all",
+                                        localConfig.engine === e ? "bg-neon-violet/20 border-neon-violet text-neon-violet" : "border-white/10 text-white/40"
+                                    )}
+                                >
+                                    {e.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <Field
+                        label="ENDPOINT URL"
+                        value={localConfig.localUrl}
                         onChange={(e: any) => setLocalConfig(prev => ({ ...prev, localUrl: e.target.value }))}
                     />
-                    <Field 
-                        label="TARGET MODEL" 
-                        value={localConfig.model}
-                        onChange={(e: any) => setLocalConfig(prev => ({ ...prev, model: e.target.value }))}
-                    />
+                    <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[9px] font-bold tracking-widest uppercase text-text-ghost">TARGET MODEL</label>
+                        </div>
+                        {localConfig.engine === 'local' && ollamaModels.length > 0 ? (
+                            <select
+                                value={localConfig.model}
+                                onChange={(e) => setLocalConfig(prev => ({ ...prev, model: e.target.value }))}
+                                className="w-full bg-black/40 border border-border-subtle px-3 py-2 text-text-bright font-mono text-xs outline-none focus:border-neon-blue rounded-sm transition-colors"
+                            >
+                                {ollamaModels.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <Field
+                                label=""
+                                value={localConfig.model}
+                                onChange={(e: any) => setLocalConfig(prev => ({ ...prev, model: e.target.value }))}
+                                placeholder={
+                                    localConfig.engine === 'gemini' ? 'gemini-2.0-flash' :
+                                    localConfig.engine === 'puter'  ? 'openai/gpt-4o' :
+                                    'gemma2:latest'
+                                }
+                            />
+                        )}
+                    </div>
                     <div className="space-y-2 pt-2">
                         <Toggle label="Auto-reconnect on startup" active={toggles.autoReconnect} onClick={() => toggle('autoReconnect')} />
                         <Toggle label="Include sensor data in prompts" active={toggles.sensorPrompt} onClick={() => toggle('sensorPrompt')} />
@@ -206,6 +284,37 @@ export default function ScreenConfig() {
                     </div>
                     {voiceTestMsg && (
                         <p className="text-[9px] font-mono text-neon-blue">{voiceTestMsg}</p>
+                    )}
+                </div>
+            </Panel>
+
+            <Panel icon={<Brain size={14} />} title="NEW MEMORY — MANUAL ENCODE">
+                <div className="space-y-3">
+                    <div className="text-[9px] font-mono text-text-ghost leading-relaxed uppercase mb-1">
+                        Directly fossilize a memory into the sovereign VFS.
+                        {memoryCount !== null && (
+                            <span className="ml-2 text-neon-violet">[{memoryCount} stored]</span>
+                        )}
+                    </div>
+                    <textarea
+                        value={newMemory}
+                        onChange={e => setNewMemory(e.target.value)}
+                        placeholder="Enter memory content to encode..."
+                        rows={4}
+                        className="w-full bg-black/40 border border-border-subtle px-3 py-2 text-text-bright font-mono text-xs outline-none focus:border-neon-violet rounded-sm transition-colors resize-none"
+                    />
+                    <button
+                        onClick={handleSaveMemory}
+                        disabled={!newMemory.trim()}
+                        className="w-full py-2 bg-neon-violet/10 border border-neon-violet/50 text-neon-violet font-bold uppercase text-[9px] tracking-widest rounded-sm hover:bg-neon-violet/20 transition-all disabled:opacity-30"
+                    >
+                        FOSSILIZE TO VFS
+                    </button>
+                    {memoryStatus && (
+                        <p className={cn(
+                            "text-[9px] font-mono tracking-widest",
+                            memoryStatus.startsWith('ERROR') ? "text-neon-red" : "text-neon-violet"
+                        )}>{memoryStatus}</p>
                     )}
                 </div>
             </Panel>

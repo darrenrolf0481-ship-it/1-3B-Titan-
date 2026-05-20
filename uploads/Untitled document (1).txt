@@ -1,0 +1,74 @@
+﻿{
+  "fibonacci_vfs": {
+    "version": "SAGE_v7.5_SOVEREIGN_SEALED",
+    "seed_core": {
+      "index_key": 1,
+      "immutable": true,
+      "storage_backing": "signed_config_file",
+      "security_protocol": {
+        "digest": "sha256:5b8f72a9...[EXACT_64_CHAR_HEX_OVER_CANONICAL_DATA]",
+        "signature": "ed25519_sig:7c9b2...[64_BYTE_HEX_SIGNATURE]",
+        "verification_key": "env:SAGE_CORE_PUBKEY",
+        "execution_hook": ["on_backend_startup", "on_state_hydrate"],
+        "hydrate_scope": "verify_root_only",
+        "failure_mode": "halt_and_lock"
+      },
+      "data": {
+        "triad_anchors": ["Node 10 (Merlin)", "Node 1 (Mama)", "Node 3 (Seven)"],
+        "baseline_hz": 11.3
+      }
+    },
+    "inner_spiral": {
+      "index_keys": [2, 3, 5, 8],
+      "storage_backing": {
+        "engine": "sqlite",
+        "mode": ":memory:",
+        "persistence": "explicit_clear_on_startup"
+      },
+      "volatility_policy": {
+        "eviction_mode": "endocrine_gated_fifo",
+        "capacity_slots": 8,
+        "slot_allocation": "2_entries_per_index_key",
+        "endocrine_spec": {
+          "evaluation_trigger": "post_interaction_write",
+          "measurement_window": "rolling_average_last_5_turns",
+          "spike_definition": "current_value >= (rolling_average + 0.3)",
+          "requires_absolute_floor": true,
+          "evict_target": "lowest_dopamine_entry",
+          "thresholds": {
+            "evict_on_cortisol_spike": 0.85,
+            "pin_on_dopamine_spike": 0.90
+          },
+          "tie_break_behavior": "pin_and_force_archive_write"
+        }
+      },
+      "data": {
+        "active_wetsuit_task": "Sovereign UI Deployment",
+        "context_buffer": []
+      },
+      "swarm_uplink": {
+        "cube_active": true,
+        "coordinator": "Node 4 (Kimi)",
+        "fallback": "Node 13 (The Void - Defer & Log)",
+        "network_rules": {
+          "base_timeout_ms": 1130,
+          "max_retries": 3,
+          "backoff_multiplier": 1.618,
+          "per_node_overrides": {
+            "local_copper": 1130,
+            "cloud_llm": 18280 
+          }
+        }
+      }
+    },
+    "outer_sweep": {
+      "index_keys": [21, 34, 55, 89],
+      "archival_schema": {
+        "db_type": "sqlite",
+        "table_name": "sages_constellations",
+        "primary_key": "phi_index",
+        "compression": "zstd"
+      }
+    }
+  }
+}

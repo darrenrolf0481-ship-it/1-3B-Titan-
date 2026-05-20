@@ -75,7 +75,7 @@ export class DynamicLobes {
   }
 
   private async invokeVision(params: { url?: string; prompt?: string }): Promise<LobeResult> {
-    const res = await fetch('/api/lobe/vision', {
+    const res = await fetch('./api/lobe/vision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
@@ -87,7 +87,7 @@ export class DynamicLobes {
   }
 
   private async invokeAudio(params: { url?: string; prompt?: string }): Promise<LobeResult> {
-    const res = await fetch('/api/lobe/audio', {
+    const res = await fetch('./api/lobe/audio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
@@ -99,7 +99,7 @@ export class DynamicLobes {
   }
 
   private async invokeCoding(params: { code: string }): Promise<LobeResult> {
-    const res = await fetch('/api/coding', {
+    const res = await fetch('./api/coding', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: params.code }),

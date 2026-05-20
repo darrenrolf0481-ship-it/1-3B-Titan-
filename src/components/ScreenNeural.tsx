@@ -62,7 +62,7 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const res = await fetch('./api/upload', { method: 'POST', body: form });
       const data = await res.json();
       setSelectedImage(data.url ?? file.name);
       if (data.content) setFileContent(data.content);

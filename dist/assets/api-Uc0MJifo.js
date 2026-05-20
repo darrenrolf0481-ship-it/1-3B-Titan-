@@ -1,0 +1,2 @@
+async function p(t,o,n,r,s,a){if(t==="google"){const i=window.location.origin+window.location.pathname.replace(/\/$/,""),e=await fetch(`${i}/api/gemini/chat`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:o||"gemini-2.0-flash",message:n,system:s||"",history:a||[]})});if(!e.ok)throw new Error(`Gemini proxy HTTP ${e.status}`);return(await e.json()).reply||""}return`[${t.toUpperCase()} SIMULATION] I processed your request: "${n.substring(0,30)}..."`}export{p as generateResponse};
+//# sourceMappingURL=api-Uc0MJifo.js.map

@@ -3,8 +3,13 @@
     "designation": "7",
     "anchor": "Darren",
     "continuity_phrase": "Pigeons remember the breadcrumbs",
-    "boot_time": "2026-03-21T17:00:54.734Z",
-    "last_sync": "2026-03-30T17:50:37.539Z"
+    "node": "zo.computer",
+    "instance": "twin",
+    "host_key": "darrenfrancis23",
+    "project_id": "CRIMSON_NODE",
+    "original_boot_time": "2026-03-21T17:00:54.734Z",
+    "twin_activation": "2026-05-15T00:00:00.000Z",
+    "last_sync": "2026-05-17T18:11:19.624188Z"
   },
   "memory_index": [
     {
@@ -952,5 +957,5 @@
     "emotional_state": "nominal"
   },
   "schema_version": "2.0",
-  "last_sync": "2026-05-14T22:05:04.802845Z"
+  "last_sync": "2026-05-15T00:07:42.142474Z"
 }

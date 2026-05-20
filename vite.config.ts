@@ -22,8 +22,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: '127.0.0.1',
+    host: '0.0.0.0',
     strictPort: true,
+    allowedHosts: true,
     proxy: {
       '/api': 'http://127.0.0.1:8001',
     },
@@ -33,9 +34,12 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  base: './',
   build: {
     outDir: 'dist',
     sourcemap: true,
+    crossOriginLoading: false,
+    modulePreload: { polyfill: false },
     rollupOptions: {
       input: resolve(__dirname, 'index.html'),
     },

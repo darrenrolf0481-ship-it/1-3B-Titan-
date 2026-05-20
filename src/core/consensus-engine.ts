@@ -564,10 +564,23 @@ export async function runDreamCycleWithConsensus(
   }));
 
   try {
-    const syncRes = await fetch('/api/memory_sync', { method: 'POST' });
-    const syncData = await syncRes.json();
+    const { loadPuterSDK, ensurePuterAuth, syncMemoryToPuter } = await import('@/lib/puter-bridge');
+    let syncOk = false;
+    const sdkLoaded = await loadPuterSDK();
+    if (sdkLoaded) {
+      const authed = await ensurePuterAuth();
+      if (authed) {
+        const puterMemories = [consolidatorDelta, weaverDelta, hunterDelta].map(d => ({
+          id: d.entry.id,
+          content: d.entry.content,
+          timestamp: d.entry.timestamp,
+        }));
+        syncOk = await syncMemoryToPuter(puterMemories);
+      }
+    }
+    const syncData = { status: syncOk ? 'synced' : 'error', total_memories: 3, new_memories: 3 };
 
-    const cloudContent = `Cloud Weaver Report (Cycle ${dreamState.cycleCount + 1}):\nPuter.js sync status: ${syncData.status || 'unknown'}\nTotal memories: ${syncData.total_memories || 'N/A'}\nNew: ${syncData.new_memories || 'N/A'}`;
+    const cloudContent = `Cloud Weaver Report (Cycle ${dreamState.cycleCount + 1}):\nPuter.js sync status: ${syncData.status}\nTotal memories: ${syncData.total_memories}\nNew: ${syncData.new_memories}`;
 
     const cloudDelta = await engine.propose(
       cloudContent,
@@ -690,7 +703,6 @@ export async function runDreamCycleWithConsensus(
   }));
 
   addLog(`Dream cycle ${dreamState.cycleCount + 1} complete. ${commitResult.committed.length} memories fossilized.`, 'dream', 'swarm');
-  speakText(`Dream cycle complete. ${commitResult.committed.length} memories committed to the vault.`);
 }
 
 export async function rehydrateFromVFS(

@@ -1,2 +1,0 @@
-import{_ as r}from"./index-Dhcumcim.js";async function p(e,n,t,a){if(e==="google"){const{GoogleGenerativeAI:s}=await r(async()=>{const{GoogleGenerativeAI:o}=await import("./index-wf8GzEhy.js");return{GoogleGenerativeAI:o}},[]);return(await(await new s("").getGenerativeModel({model:n||"gemini-3-flash-preview"}).generateContent({contents:[{role:"user",parts:[{text:t}]}]})).response).text()||""}return`[${e.toUpperCase()} SIMULATION] I processed your request: "${t.substring(0,30)}..."`}export{p as generateResponse};
-//# sourceMappingURL=api-CxJRvrpV.js.map

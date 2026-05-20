@@ -6,9 +6,9 @@ import type { SageCore } from '@/core/sage-core';
 import type { LLMConfig } from '@/core/types';
 
 const llmConfig: LLMConfig = {
-  engine: 'gemini',
+  engine: 'local',
   localUrl: 'http://localhost:11434',
-  model: 'gemini-3-flash-preview',
+  model: 'gemma2:latest',
 };
 
 export function SageProviderWrapper({ children }: { children: React.ReactNode }) {

@@ -8,7 +8,8 @@ import {
   Mic2,
   Zap,
   Settings,
-  Clock
+  Clock,
+  Brain
 } from 'lucide-react';
 
 interface FooterProps {
@@ -25,6 +26,7 @@ const SCREENS = [
   { id: 'temporal', label: 'TIME',    icon: Clock },
   { id: 'starcity', label: 'CITY',    icon: LayoutDashboard },
   { id: 'neural',   label: 'CHAT',    icon: Zap },
+  { id: 'memory',   label: 'MEM',     icon: Brain },
   { id: 'config',   label: 'CFG',     icon: Settings },
 ];
 

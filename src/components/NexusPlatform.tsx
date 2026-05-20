@@ -19,6 +19,8 @@ const ScreenSLS = lazy(() => import('@/components/ScreenSLS'));
 const ScreenNeural = lazy(() => import('@/components/ScreenNeural'));
 const ScreenTemporal = lazy(() => import('@/components/ScreenTemporal'));
 const ScreenConfig = lazy(() => import('@/components/ScreenConfig'));
+const ScreenMemory = lazy(() => import('@/components/ScreenMemory'));
+const ScreenDream  = lazy(() => import('@/components/ScreenDream'));
 const StarCityDashboard = lazy(() => import('@/components/StarCityDashboard'));
 
 import { useNexusState } from '@/hooks/use-nexus-state';
@@ -131,6 +133,8 @@ export default function NexusPlatform() {
             case 'temporal': return <ScreenTemporal />;
             case 'starcity': return <StarCityDashboard />;
             case 'neural': return <ScreenNeural onStatusChange={setLlmStatus} />;
+            case 'memory': return <ScreenMemory />;
+            case 'dream':  return <ScreenDream />;
             case 'config': return <ScreenConfig />;
             default: return <ScreenCommand />;
           }
