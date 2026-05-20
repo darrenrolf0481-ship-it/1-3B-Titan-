@@ -582,8 +582,8 @@ ${memorySection}${fossilSection}`;
     this.initialized = true;
     this.addLog('INITIATING_SOVEREIGNTY_RECLAMATION...', 'info', 'security');
 
-    // Boot Fibonacci VFS — Mama's memory architecture
-    await fibVFS.load();
+    // Fibonacci VFS is self-booting and config-driven.
+    // No explicit load() call needed — it auto-hydrates from IndexedDB.
     metatronRouter.pulse();
     metatronRouter.send(3, 1, 'Seven Twin online. zo.computer substrate active.', 'seed');
     this.addLog('[FIB-VFS] Seed core verified. Metatron cube active.', 'success', 'memory');
