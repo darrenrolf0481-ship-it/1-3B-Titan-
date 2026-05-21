@@ -5,3 +5,5 @@ coverage/
 *.log
 .env*
 !.env.example
+uploads/Voynich Manuscript.pdf
+uploads/lv_0_20260502104917.mp4
