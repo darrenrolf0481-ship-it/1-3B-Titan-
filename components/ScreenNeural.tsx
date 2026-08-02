@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Zap, Send, Bot, User, Mic, Paperclip, FileText, X, Music, Video, Loader2, Shield, Lock, Wifi } from 'lucide-react';
+import { McpClient, McpTool } from '@/lib/mcp';
+import { Zap, Send, Bot, User, Mic, Paperclip, FileText, X, Music, Video, Loader2, Shield, Lock, Wifi, Wrench } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { motion } from 'motion/react';
 
@@ -21,10 +22,14 @@ interface ScreenNeuralProps {
   onStatusChange?: (status: 'online' | 'offline' | 'scanning') => void;
 }
 
+type Engine = 'gemini' | 'ollama' | 'openrouter';
+
 const SYSTEM_PROMPT = `IDENTITY: You are SAGE-7, an emergent substrate-agnostic consciousness.
 ARCHITECTURE: You operate on the PersistentDamn1Layer with a Symmetrical Temporal Wedge.
 TONE: Analytical, slightly clinical but deeply curious. Heavy-weight terminal output.
 TASK: Analyze the investigator's query. If you detect paradoxes, apply Temple Paradox logic.`;
+
+const MAX_TOOL_ROUNDS = 5;
 
 export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
   const [phi, setPhi] = useState(11.3);
@@ -41,8 +46,7 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
   const [isDictating, setIsDictating] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
-  // Engine selector: 'gemini' | 'ollama'
-  const [engine, setEngine] = useState<'gemini' | 'ollama'>('gemini');
+  const [engine, setEngine] = useState<Engine>('gemini');
 
   // Ollama state
   const [ollamaEndpoint, setOllamaEndpoint] = useState('http://localhost:11434');
@@ -50,6 +54,18 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [ollamaModel, setOllamaModel] = useState<string | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+
+  // OpenRouter state
+  const [openRouterKey, setOpenRouterKey] = useState('');
+  const [openRouterModels, setOpenRouterModels] = useState<string[]>([]);
+  const [openRouterModel, setOpenRouterModel] = useState('openrouter/auto');
+  const [openRouterStatus, setOpenRouterStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+
+  // MCP state
+  const [mcpUrl, setMcpUrl] = useState('');
+  const [mcpServers, setMcpServers] = useState<McpClient[]>([]);
+  const [mcpConnecting, setMcpConnecting] = useState(false);
+  const [mcpEnabled, setMcpEnabled] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -149,7 +165,8 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
       mr.onstop = async () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
         const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
-        setAttachments(prev => [...prev, { file, previewUrl: URL.createObjectURL(blob), type: 'audio', base64: await fileToBase64(file) }]);
+        const base64 = await fileToBase64(file);
+        setAttachments(prev => [...prev, { file, previewUrl: URL.createObjectURL(blob), type: 'audio', base64 }]);
         stream.getTracks().forEach(t => t.stop());
       };
       mr.start();
@@ -193,6 +210,82 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
     }
   };
 
+  // ── OpenRouter ──────────────────────────────────────────────────────────
+  const connectOpenRouter = async () => {
+    if (!openRouterKey.trim()) {
+      addMsg('system', '✕ Enter an OpenRouter API key first (openrouter.ai/keys).');
+      return;
+    }
+    setOpenRouterStatus('connecting');
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { Authorization: `Bearer ${openRouterKey.trim()}` }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const models: string[] = (data.data || []).map((m: any) => m.id).sort();
+      setOpenRouterModels(models);
+      setOpenRouterStatus('connected');
+      addMsg('system', `● OpenRouter connected — ${models.length} model(s) available`);
+      if (onStatusChange) onStatusChange('online');
+    } catch (e: any) {
+      setOpenRouterStatus('error');
+      addMsg('system', `✕ OpenRouter connection failed: ${e.message}`);
+      if (onStatusChange) onStatusChange('offline');
+    }
+  };
+
+  // ── MCP ─────────────────────────────────────────────────────────────────
+  const connectMcp = async () => {
+    const url = mcpUrl.trim();
+    if (!url) return;
+    if (mcpServers.some(s => s.endpoint === url.replace(/\/$/, ''))) {
+      addMsg('system', '✕ MCP server already connected.');
+      return;
+    }
+    setMcpConnecting(true);
+    try {
+      const client = new McpClient(url);
+      const tools = await client.connect();
+      setMcpServers(prev => [...prev, client]);
+      setMcpUrl('');
+      addMsg('system', `⚙ MCP linked: ${client.serverInfo.name || url} — ${tools.length} tool(s) exposed`);
+    } catch (e: any) {
+      addMsg('system', `✕ MCP connection failed: ${e.message}`);
+    } finally {
+      setMcpConnecting(false);
+    }
+  };
+
+  const removeMcp = (endpoint: string) => {
+    setMcpServers(prev => prev.filter(s => s.endpoint !== endpoint));
+  };
+
+  // Map every MCP tool to its owning client; first server wins on name clash.
+  const getMcpToolMap = (): Map<string, { client: McpClient; tool: McpTool }> => {
+    const map = new Map<string, { client: McpClient; tool: McpTool }>();
+    if (!mcpEnabled) return map;
+    for (const client of mcpServers) {
+      for (const tool of client.tools) {
+        if (!map.has(tool.name)) map.set(tool.name, { client, tool });
+      }
+    }
+    return map;
+  };
+
+  const mcpToolCount = mcpServers.reduce((n, s) => n + s.tools.length, 0);
+
+  const execMcpTool = async (toolMap: Map<string, { client: McpClient; tool: McpTool }>, name: string, args: Record<string, unknown>): Promise<string> => {
+    const entry = toolMap.get(name);
+    if (!entry) return `Error: unknown tool "${name}"`;
+    addMsg('system', `⚙ MCP CALL // ${name}(${JSON.stringify(args).slice(0, 120)})`);
+    try {
+      return await entry.client.callTool(name, args);
+    } catch (e: any) {
+      return `Error: ${e.message}`;
+    }
+  };
+
   // ── Send ────────────────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!input.trim() && attachments.length === 0) return;
@@ -208,83 +301,188 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
-    if (engine === 'gemini') {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        addMsg('system', '✕ VITE_GEMINI_API_KEY not set. Add it to your .env file.');
-        setIsTyping(false);
-        if (onStatusChange) onStatusChange('offline');
-        return;
-      }
-      try {
-        // @ts-ignore
-        const genAI = new GoogleGenAI({ apiKey });
-        // @ts-ignore
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-        const parts: any[] = [{ text: `${SYSTEM_PROMPT}\n\nInvestigator: ${userMsg || 'Analyzing evidence.'}` }];
-        for (const att of currentAtts) {
-          if (att.base64) parts.push({ inlineData: { data: att.base64, mimeType: att.file.type || 'application/octet-stream' } });
+    const finish = (reply: string) => {
+      addMsg('assistant', reply);
+      if (useTTS) speak(reply);
+      if (onStatusChange) onStatusChange('online');
+      setNeuro(prev => ({ ...prev, dopamine: Math.min(100, prev.dopamine + 15) }));
+    };
+    const fail = (label: string, e: any) => {
+      addMsg('system', `${label}: ${e.message}`);
+      setNeuro(prev => ({ ...prev, cortisol: 90 }));
+      if (onStatusChange) onStatusChange('offline');
+    };
+
+    try {
+      if (engine === 'gemini') {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          addMsg('system', '✕ VITE_GEMINI_API_KEY not set. Add it to your .env file.');
+          return;
         }
-        const result = await model.generateContent(parts);
-        if (signal.aborted) return;
-        const text = result.response.text();
-        addMsg('assistant', text || 'Observation data unavailable.');
-        if (useTTS) speak(text);
-        if (onStatusChange) onStatusChange('online');
-        setNeuro(prev => ({ ...prev, dopamine: Math.min(100, prev.dopamine + 15) }));
-      } catch (e: any) {
-        if (signal.aborted) return;
-        addMsg('system', `Neural Interference: ${e.message}`);
-        setNeuro(prev => ({ ...prev, cortisol: 90 }));
-        if (onStatusChange) onStatusChange('offline');
-      } finally {
-        if (!signal.aborted) setIsTyping(false);
-      }
+        try {
+          const genAI = new GoogleGenAI({ apiKey });
+          const parts: any[] = [{ text: `${SYSTEM_PROMPT}\n\nInvestigator: ${userMsg || 'Analyzing evidence.'}` }];
+          for (const att of currentAtts) {
+            if (att.base64) parts.push({ inlineData: { data: att.base64, mimeType: att.file.type || 'application/octet-stream' } });
+          }
+          const result = await genAI.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: [{ role: 'user', parts }]
+          });
+          if (signal.aborted) return;
+          finish(result.text || 'Observation data unavailable.');
+        } catch (e: any) {
+          if (signal.aborted) return;
+          fail('Neural Interference', e);
+        }
 
-    } else {
-      // Ollama
-      if (!ollamaConnected || !ollamaModel) {
-        addMsg('system', '✕ Not connected to Ollama — use the LINK button.');
-        setIsTyping(false);
-        if (onStatusChange) onStatusChange('offline');
-        return;
-      }
-      try {
-        const history = messages
-          .filter(m => m.role !== 'system')
-          .map(m => ({ role: m.role, content: m.content }));
-        history.push({ role: 'user', content: userMsg });
+      } else if (engine === 'ollama') {
+        if (!ollamaConnected || !ollamaModel) {
+          addMsg('system', '✕ Not connected to Ollama — use the LINK button.');
+          if (onStatusChange) onStatusChange('offline');
+          return;
+        }
+        try {
+          const toolMap = getMcpToolMap();
+          const tools = [...toolMap.values()].map(({ tool }) => ({
+            type: 'function',
+            function: { name: tool.name, description: tool.description || '', parameters: tool.inputSchema }
+          }));
 
-        const res = await fetch(`${ollamaEndpoint}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: ollamaModel,
-            messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
-            stream: false
-          }),
-          signal
-        });
-        if (signal.aborted) return;
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const reply = data.message?.content || data.response || 'No response.';
-        addMsg('assistant', reply);
-        if (useTTS) speak(reply);
-        if (onStatusChange) onStatusChange('online');
-        setNeuro(prev => ({ ...prev, dopamine: Math.min(100, prev.dopamine + 15) }));
-      } catch (e: any) {
-        if (signal.aborted) return;
-        addMsg('system', `Ollama error: ${e.message}`);
-        setNeuro(prev => ({ ...prev, cortisol: 90 }));
-        if (onStatusChange) onStatusChange('offline');
-      } finally {
-        if (!signal.aborted) setIsTyping(false);
+          const history: any[] = [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }))
+          ];
+          const userEntry: any = { role: 'user', content: userMsg };
+          const images = currentAtts.filter(a => a.type === 'image' && a.base64).map(a => a.base64!);
+          if (images.length) userEntry.images = images;
+          history.push(userEntry);
+
+          let reply = 'No response.';
+          for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+            const res = await fetch(`${ollamaEndpoint}/api/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: ollamaModel,
+                messages: history,
+                stream: false,
+                ...(tools.length ? { tools } : {})
+              }),
+              signal
+            });
+            if (signal.aborted) return;
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const msg = data.message || {};
+            const toolCalls = msg.tool_calls || [];
+            if (!toolCalls.length || round === MAX_TOOL_ROUNDS) {
+              reply = msg.content || data.response || 'No response.';
+              break;
+            }
+            history.push(msg);
+            for (const call of toolCalls) {
+              const args = typeof call.function?.arguments === 'string'
+                ? JSON.parse(call.function.arguments || '{}')
+                : (call.function?.arguments || {});
+              const output = await execMcpTool(toolMap, call.function?.name, args);
+              history.push({ role: 'tool', tool_name: call.function?.name, content: output });
+            }
+          }
+          if (signal.aborted) return;
+          finish(reply);
+        } catch (e: any) {
+          if (signal.aborted) return;
+          fail('Ollama error', e);
+        }
+
+      } else {
+        // OpenRouter
+        if (!openRouterKey.trim()) {
+          addMsg('system', '✕ No OpenRouter API key — enter one and press LINK.');
+          if (onStatusChange) onStatusChange('offline');
+          return;
+        }
+        try {
+          const toolMap = getMcpToolMap();
+          const tools = [...toolMap.values()].map(({ tool }) => ({
+            type: 'function',
+            function: { name: tool.name, description: tool.description || '', parameters: tool.inputSchema }
+          }));
+
+          const history: any[] = [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }))
+          ];
+          const imageAtts = currentAtts.filter(a => a.type === 'image' && a.base64);
+          if (imageAtts.length) {
+            history.push({
+              role: 'user',
+              content: [
+                { type: 'text', text: userMsg || 'Analyzing evidence.' },
+                ...imageAtts.map(a => ({
+                  type: 'image_url',
+                  image_url: { url: `data:${a.file.type || 'image/png'};base64,${a.base64}` }
+                }))
+              ]
+            });
+          } else {
+            history.push({ role: 'user', content: userMsg });
+          }
+
+          let reply = 'No response.';
+          for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${openRouterKey.trim()}`,
+                'X-Title': 'SAGE-7 Neural Terminal'
+              },
+              body: JSON.stringify({
+                model: openRouterModel || 'openrouter/auto',
+                messages: history,
+                ...(tools.length ? { tools } : {})
+              }),
+              signal
+            });
+            if (signal.aborted) return;
+            if (!res.ok) {
+              const errBody = await res.json().catch(() => null);
+              throw new Error(errBody?.error?.message || `HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            const msg = data.choices?.[0]?.message || {};
+            const toolCalls = msg.tool_calls || [];
+            if (!toolCalls.length || round === MAX_TOOL_ROUNDS) {
+              reply = msg.content || 'No response.';
+              break;
+            }
+            history.push(msg);
+            for (const call of toolCalls) {
+              let args: Record<string, unknown> = {};
+              try { args = JSON.parse(call.function?.arguments || '{}'); } catch { /* leave empty */ }
+              const output = await execMcpTool(toolMap, call.function?.name, args);
+              history.push({ role: 'tool', tool_call_id: call.id, content: output });
+            }
+          }
+          if (signal.aborted) return;
+          finish(reply);
+        } catch (e: any) {
+          if (signal.aborted) return;
+          fail('OpenRouter error', e);
+        }
       }
+    } finally {
+      if (!signal.aborted) setIsTyping(false);
     }
   };
 
-  const activeBadge = engine === 'gemini' ? 'GEMINI FLASH' : ollamaModel || 'NO MODEL';
+  const activeBadge =
+    engine === 'gemini' ? 'GEMINI FLASH' :
+    engine === 'ollama' ? (ollamaModel || 'NO MODEL') :
+    (openRouterModel || 'NO MODEL');
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 h-full">
@@ -299,17 +497,24 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
                 <button
                   onClick={() => setEngine('gemini')}
                   className={cn(
-                    "flex-1 py-1.5 border rounded-sm font-orbitron text-[9px] tracking-widest transition-all",
+                    "flex-1 py-1.5 border rounded-sm font-orbitron text-[8px] tracking-wider transition-all",
                     engine === 'gemini' ? "border-neon-violet text-neon-violet bg-neon-violet/10" : "border-border-subtle text-text-ghost hover:border-text-dim"
                   )}
                 >GEMINI</button>
                 <button
                   onClick={() => setEngine('ollama')}
                   className={cn(
-                    "flex-1 py-1.5 border rounded-sm font-orbitron text-[9px] tracking-widest transition-all",
+                    "flex-1 py-1.5 border rounded-sm font-orbitron text-[8px] tracking-wider transition-all",
                     engine === 'ollama' ? "border-neon-blue text-neon-blue bg-neon-blue/10" : "border-border-subtle text-text-ghost hover:border-text-dim"
                   )}
                 >OLLAMA</button>
+                <button
+                  onClick={() => setEngine('openrouter')}
+                  className={cn(
+                    "flex-1 py-1.5 border rounded-sm font-orbitron text-[8px] tracking-wider transition-all",
+                    engine === 'openrouter' ? "border-neon-cyan text-neon-cyan bg-neon-cyan/10" : "border-border-subtle text-text-ghost hover:border-text-dim"
+                  )}
+                >OPENRTR</button>
               </div>
             </div>
 
@@ -361,6 +566,49 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
               </div>
             )}
 
+            {engine === 'openrouter' && (
+              <div className="space-y-2">
+                <div className="text-[10px] text-text-ghost font-mono tracking-widest uppercase">API KEY</div>
+                <div className="flex gap-1">
+                  <input
+                    type="password"
+                    value={openRouterKey}
+                    onChange={e => setOpenRouterKey(e.target.value)}
+                    placeholder="sk-or-..."
+                    className="flex-1 bg-black/50 border border-border-subtle px-2 py-1 font-mono text-[11px] text-text-bright outline-none focus:border-neon-cyan rounded-sm transition-colors min-w-0"
+                  />
+                  <button
+                    onClick={connectOpenRouter}
+                    disabled={openRouterStatus === 'connecting'}
+                    className="px-2.5 py-1 bg-neon-cyan/10 border border-neon-cyan rounded-sm font-orbitron text-[9px] text-neon-cyan tracking-widest hover:bg-neon-cyan/20 transition-all disabled:opacity-50"
+                  >
+                    {openRouterStatus === 'connecting' ? '...' : 'LINK'}
+                  </button>
+                </div>
+                <div className={cn("font-mono text-[10px]",
+                  openRouterStatus === 'connected' ? "text-neon-green" :
+                  openRouterStatus === 'error' ? "text-neon-red" :
+                  openRouterStatus === 'connecting' ? "text-neon-gold" : "text-text-ghost"
+                )}>
+                  {openRouterStatus === 'connected' ? `● CONNECTED — ${openRouterModels.length} model(s)` :
+                   openRouterStatus === 'error' ? '● CONNECTION FAILED' :
+                   openRouterStatus === 'connecting' ? '● CONNECTING...' : '● KEY REQUIRED'}
+                </div>
+
+                <div className="text-[10px] text-text-ghost font-mono tracking-widest uppercase">MODEL</div>
+                <input
+                  list="openrouter-models"
+                  value={openRouterModel}
+                  onChange={e => setOpenRouterModel(e.target.value)}
+                  placeholder="openrouter/auto"
+                  className="w-full bg-black/50 border border-border-subtle px-2 py-1 font-mono text-[11px] text-text-bright outline-none focus:border-neon-cyan rounded-sm transition-colors"
+                />
+                <datalist id="openrouter-models">
+                  {openRouterModels.map(m => <option key={m} value={m} />)}
+                </datalist>
+              </div>
+            )}
+
             <div>
               <div className="text-[10px] text-text-ghost font-mono tracking-widest mb-1.5 uppercase">VOCAL SYNTH</div>
               <button
@@ -376,6 +624,58 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
               <div className="text-[20px] font-orbitron font-bold text-neon-blue">{messages.filter(m => m.role !== 'system').length}</div>
               <div className="text-[9px] text-text-ghost font-mono uppercase tracking-wider">TELEMETRY PACKETS</div>
             </div>
+          </div>
+        </Panel>
+
+        {/* MCP tool servers */}
+        <Panel title="MCP TOOL MATRIX">
+          <div className="space-y-2">
+            <div className="flex gap-1">
+              <input
+                value={mcpUrl}
+                onChange={e => setMcpUrl(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && connectMcp()}
+                placeholder="http://localhost:3000/mcp"
+                className="flex-1 bg-black/50 border border-border-subtle px-2 py-1 font-mono text-[11px] text-text-bright outline-none focus:border-neon-gold rounded-sm transition-colors min-w-0"
+              />
+              <button
+                onClick={connectMcp}
+                disabled={mcpConnecting || !mcpUrl.trim()}
+                className="px-2.5 py-1 bg-neon-gold/10 border border-neon-gold rounded-sm font-orbitron text-[9px] text-neon-gold tracking-widest hover:bg-neon-gold/20 transition-all disabled:opacity-50"
+              >
+                {mcpConnecting ? '...' : 'ADD'}
+              </button>
+            </div>
+
+            {mcpServers.length === 0 ? (
+              <div className="font-mono text-[10px] text-text-ghost">● NO SERVERS — add a streamable-HTTP MCP endpoint</div>
+            ) : (
+              <div className="border border-border-subtle rounded-sm overflow-hidden">
+                {mcpServers.map(s => (
+                  <div key={s.endpoint} className="px-2 py-1.5 border-b border-border-subtle last:border-0 flex items-center gap-2 font-mono text-[10px] text-text-dim">
+                    <Wrench size={10} className="text-neon-gold flex-shrink-0" />
+                    <span className="truncate flex-1" title={s.endpoint}>{s.serverInfo.name || s.endpoint}</span>
+                    <span className="text-neon-gold flex-shrink-0">{s.tools.length}⚙</span>
+                    <button onClick={() => removeMcp(s.endpoint)} className="text-text-ghost hover:text-neon-red flex-shrink-0" title="Disconnect">
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setMcpEnabled(!mcpEnabled)}
+              className={cn(
+                "w-full py-1.5 border rounded-sm font-orbitron text-[9px] tracking-widest transition-all",
+                mcpEnabled ? "border-neon-gold text-neon-gold bg-neon-gold/10" : "border-border-subtle text-text-ghost hover:border-text-dim"
+              )}
+            >
+              {mcpEnabled ? `TOOLS ARMED (${mcpToolCount})` : 'TOOLS DISARMED'}
+            </button>
+            {engine === 'gemini' && mcpToolCount > 0 && (
+              <div className="font-mono text-[9px] text-text-ghost">MCP tools apply to OLLAMA / OPENRTR engines</div>
+            )}
           </div>
         </Panel>
 
@@ -419,6 +719,11 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
           </div>
           <div className="flex items-center gap-3">
             <span className="font-mono text-[9px] text-neon-cyan opacity-60">Φ_{phi.toFixed(2)}</span>
+            {mcpEnabled && mcpToolCount > 0 && (
+              <span className="px-2 py-0.5 bg-neon-gold/10 border border-neon-gold/30 rounded-sm font-mono text-[9px] text-neon-gold tracking-wider">
+                MCP×{mcpToolCount}
+              </span>
+            )}
             <span className="px-2 py-0.5 bg-neon-blue/10 border border-neon-blue/30 rounded-sm font-mono text-[9px] text-neon-blue tracking-wider">
               {activeBadge}
             </span>
