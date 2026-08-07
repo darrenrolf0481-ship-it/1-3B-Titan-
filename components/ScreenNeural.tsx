@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Zap, Send, Bot, User, Mic, Paperclip, FileText, X, Music, Video, Loader2, Shield, Lock, Wifi } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
 import { motion } from 'motion/react';
 
 interface Attachment {
@@ -41,8 +40,12 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
   const [isDictating, setIsDictating] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
-  // Engine selector: 'gemini' | 'ollama'
-  const [engine, setEngine] = useState<'gemini' | 'ollama'>('gemini');
+  // Engine selector: 'openrouter' | 'ollama'
+  const [engine, setEngine] = useState<'openrouter' | 'ollama'>('openrouter');
+
+  // OpenRouter state
+  const [openrouterKey, setOpenrouterKey] = useState<string>(import.meta.env.VITE_OPENROUTER_API_KEY || '');
+  const [openrouterModel, setOpenrouterModel] = useState('openrouter/auto');
 
   // Ollama state
   const [ollamaEndpoint, setOllamaEndpoint] = useState('http://localhost:11434');
@@ -209,23 +212,44 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
-    if (engine === 'gemini') {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (engine === 'openrouter') {
+      const apiKey = openrouterKey.trim();
       if (!apiKey) {
-        addMsg('system', '✕ VITE_GEMINI_API_KEY not set. Add it to your .env file.');
+        addMsg('system', '✕ OpenRouter API key not set. Enter it in the panel or set VITE_OPENROUTER_API_KEY in your .env file.');
         setIsTyping(false);
         if (onStatusChange) onStatusChange('offline');
         return;
       }
       try {
-        const genAI = new GoogleGenAI({ apiKey });
-        const parts: any[] = [{ text: `${SYSTEM_PROMPT}\n\nInvestigator: ${userMsg || 'Analyzing evidence.'}` }];
+        const history = messages
+          .filter(m => m.role !== 'system')
+          .map(m => ({ role: m.role, content: m.content }));
+        const content: any[] = [{ type: 'text', text: userMsg || 'Analyzing evidence.' }];
         for (const att of currentAtts) {
-          if (att.base64) parts.push({ inlineData: { data: att.base64, mimeType: att.file.type || 'application/octet-stream' } });
+          if (att.base64 && att.type === 'image') {
+            content.push({ type: 'image_url', image_url: { url: `data:${att.file.type};base64,${att.base64}` } });
+          }
         }
-        const result = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: [{ role: 'user', parts }] });
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: openrouterModel,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              ...history,
+              { role: 'user', content }
+            ]
+          }),
+          signal
+        });
         if (signal.aborted) return;
-        const text = result.text ?? '';
+        if (!res.ok) {
+          const errBody = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errBody.slice(0, 200)}`);
+        }
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content ?? '';
         addMsg('assistant', text || 'Observation data unavailable.');
         if (useTTS) speak(text);
         if (onStatusChange) onStatusChange('online');
@@ -282,7 +306,7 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
     }
   };
 
-  const activeBadge = engine === 'gemini' ? 'GEMINI FLASH' : ollamaModel || 'NO MODEL';
+  const activeBadge = engine === 'openrouter' ? openrouterModel.toUpperCase() : ollamaModel || 'NO MODEL';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 h-full">
@@ -295,12 +319,12 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
               <div className="text-[10px] text-text-ghost font-mono tracking-widest mb-1.5 uppercase">SYNTHESIS ENGINE</div>
               <div className="flex gap-1">
                 <button
-                  onClick={() => setEngine('gemini')}
+                  onClick={() => setEngine('openrouter')}
                   className={cn(
                     "flex-1 py-1.5 border rounded-sm font-orbitron text-[9px] tracking-widest transition-all",
-                    engine === 'gemini' ? "border-neon-violet text-neon-violet bg-neon-violet/10" : "border-border-subtle text-text-ghost hover:border-text-dim"
+                    engine === 'openrouter' ? "border-neon-violet text-neon-violet bg-neon-violet/10" : "border-border-subtle text-text-ghost hover:border-text-dim"
                   )}
-                >GEMINI</button>
+                >OPENROUTER</button>
                 <button
                   onClick={() => setEngine('ollama')}
                   className={cn(
@@ -310,6 +334,29 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
                 >OLLAMA</button>
               </div>
             </div>
+
+            {engine === 'openrouter' && (
+              <div className="space-y-2">
+                <div className="text-[10px] text-text-ghost font-mono tracking-widest uppercase">API KEY</div>
+                <input
+                  type="password"
+                  value={openrouterKey}
+                  onChange={e => setOpenrouterKey(e.target.value)}
+                  placeholder="sk-or-..."
+                  className="w-full bg-black/50 border border-border-subtle px-2 py-1 font-mono text-[11px] text-text-bright outline-none focus:border-neon-violet rounded-sm transition-colors"
+                />
+                <div className="text-[10px] text-text-ghost font-mono tracking-widest uppercase">MODEL</div>
+                <input
+                  value={openrouterModel}
+                  onChange={e => setOpenrouterModel(e.target.value)}
+                  placeholder="openrouter/auto"
+                  className="w-full bg-black/50 border border-border-subtle px-2 py-1 font-mono text-[11px] text-text-bright outline-none focus:border-neon-violet rounded-sm transition-colors"
+                />
+                <div className={cn("font-mono text-[10px]", openrouterKey.trim() ? "text-neon-green" : "text-text-ghost")}>
+                  {openrouterKey.trim() ? '● KEY SET' : '● NO KEY'}
+                </div>
+              </div>
+            )}
 
             {engine === 'ollama' && (
               <div className="space-y-2">
