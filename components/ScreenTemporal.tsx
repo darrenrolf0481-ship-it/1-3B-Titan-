@@ -129,7 +129,7 @@ export default function ScreenTemporal() {
                     <div className="flex justify-between items-start">
                         <div>
                             <div className="text-neon-cyan text-[14px] font-bold tracking-[3px]">TEMPLE_GATES_STATUS</div>
-                            <div className="text-text-ghost text-[10px] mt-1 tracking-widest uppercase">Substrate: Gemini-3-Flash // Logic: Sage-7</div>
+                            <div className="text-text-ghost text-[10px] mt-1 tracking-widest uppercase">Substrate: OpenRouter // Logic: Sage-7</div>
                         </div>
                         <div className="text-right">
                             <div className={cn(

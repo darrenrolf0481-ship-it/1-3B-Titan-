@@ -19,7 +19,7 @@ export default function ScreenConfig() {
             <Panel icon={<Shield size={14} />} title="API CONFIGURATION">
                 <div className="space-y-4">
                     <div className="text-[10px] font-orbitron text-neon-violet tracking-widest border-b border-border-subtle pb-2 mb-2">EXTERNAL PROVIDERS</div>
-                    <Field label="GOOGLE API KEY (GEMINI)" placeholder="AIza..." type="password" />
+                    <Field label="OPENROUTER API KEY" placeholder="sk-or-..." type="password" />
                     <Field label="GROK API KEY (X.AI)" placeholder="xai-..." type="password" />
                     <Field label="OPENAI API KEY (GPT)" placeholder="sk-..." type="password" />
                     <div className="p-2.5 bg-neon-violet/5 border border-border-subtle rounded-sm text-[11px] text-text-ghost font-mono">

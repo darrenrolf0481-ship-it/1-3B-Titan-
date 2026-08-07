@@ -15,6 +15,6 @@ View your app in AI Studio: https://ai.studio/apps/01b6c982-f058-4105-abb7-53d90
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. (Optional) Set `VITE_OPENROUTER_API_KEY` in [.env.local](.env.local) to your OpenRouter API key — or enter it in the Neural screen UI. Local Ollama is also supported with no key.
 3. Run the app:
    `npm run dev`
