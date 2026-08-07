@@ -149,7 +149,8 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
       mr.onstop = async () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
         const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
-        setAttachments(prev => [...prev, { file, previewUrl: URL.createObjectURL(blob), type: 'audio', base64: await fileToBase64(file) }]);
+        const base64 = await fileToBase64(file);
+        setAttachments(prev => [...prev, { file, previewUrl: URL.createObjectURL(blob), type: 'audio', base64 }]);
         stream.getTracks().forEach(t => t.stop());
       };
       mr.start();
@@ -217,17 +218,14 @@ export default function ScreenNeural({ onStatusChange }: ScreenNeuralProps) {
         return;
       }
       try {
-        // @ts-ignore
         const genAI = new GoogleGenAI({ apiKey });
-        // @ts-ignore
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         const parts: any[] = [{ text: `${SYSTEM_PROMPT}\n\nInvestigator: ${userMsg || 'Analyzing evidence.'}` }];
         for (const att of currentAtts) {
           if (att.base64) parts.push({ inlineData: { data: att.base64, mimeType: att.file.type || 'application/octet-stream' } });
         }
-        const result = await model.generateContent(parts);
+        const result = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: [{ role: 'user', parts }] });
         if (signal.aborted) return;
-        const text = result.response.text();
+        const text = result.text ?? '';
         addMsg('assistant', text || 'Observation data unavailable.');
         if (useTTS) speak(text);
         if (onStatusChange) onStatusChange('online');
