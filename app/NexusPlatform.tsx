@@ -35,7 +35,7 @@ function ScreenLoader() {
 export default function NexusPlatform() {
   const [activeScreen, setActiveScreen] = useState('neural');
   const [mounted, setMounted] = useState(false);
-  const { anomalyLevel, llmStatus, setLlmStatus, meters, historiesRef, sensorPrompt, setSensorPrompt } = useNexusState();
+  const { anomalyLevel, llmStatus, setLlmStatus, meters, historiesRef, sensorPrompt, setSensorPrompt, serverConnected } = useNexusState();
 
   useEffect(() => {
     setMounted(true);
@@ -56,7 +56,7 @@ export default function NexusPlatform() {
             case 'neural': return <ScreenNeural onStatusChange={setLlmStatus} meters={meters} anomalyLevel={anomalyLevel} sensorPrompt={sensorPrompt} />;
             case 'journal': return <ScreenJournal />;
             case 'lattice': return <ScreenMemoryLattice />;
-            case 'config': return <ScreenConfig sensorPrompt={sensorPrompt} onSensorPromptChange={setSensorPrompt} />;
+            case 'config': return <ScreenConfig sensorPrompt={sensorPrompt} onSensorPromptChange={setSensorPrompt} meters={meters} anomalyLevel={anomalyLevel} serverConnected={serverConnected} />;
             default: return <ScreenCommand />;
           }
         })()}
@@ -70,7 +70,7 @@ export default function NexusPlatform() {
       <SmokeBackground />
       <CornerSigils />
       
-      <Header llmStatus={llmStatus} anomalyLevel={anomalyLevel} />
+      <Header llmStatus={llmStatus} anomalyLevel={anomalyLevel} serverConnected={serverConnected} />
       
       <div className="flex-1 grid grid-cols-11 overflow-hidden">
         <Sidebar 

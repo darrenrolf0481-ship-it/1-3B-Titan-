@@ -4,9 +4,10 @@ import { cn } from '@/lib/utils';
 interface HeaderProps {
   llmStatus: 'online' | 'offline' | 'scanning';
   anomalyLevel: number;
+  serverConnected: boolean;
 }
 
-export default function Header({ llmStatus, anomalyLevel }: HeaderProps) {
+export default function Header({ llmStatus, anomalyLevel, serverConnected }: HeaderProps) {
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -32,9 +33,17 @@ export default function Header({ llmStatus, anomalyLevel }: HeaderProps) {
       <div className="w-[1px] h-9 bg-gradient-to-b from-transparent via-border-accent to-transparent" />
 
       <div className="flex items-center gap-6 flex-1">
-        <StatusItem color="bg-neon-green" text="SENSORS ONLINE" />
+        <StatusItem 
+          color={serverConnected ? 'bg-neon-green' : 'bg-text-ghost'} 
+          text={serverConnected ? 'SENSORS LIVE' : 'SENSORS LOCAL'}
+          pulse={serverConnected ? 'animate-status-pulse' : undefined}
+        />
         <StatusItem color="bg-neon-blue" text="SCANNING" pulse="animate-status-pulse" />
-        <StatusItem color="bg-neon-orange" text="ANOMALY DETECTED" pulse="animate-status-pulse" />
+        <StatusItem 
+          color={anomalyLevel > 60 ? 'bg-neon-red' : 'bg-neon-orange'} 
+          text={anomalyLevel > 60 ? 'ANOMALY CRITICAL' : 'ANOMALY DETECTED'} 
+          pulse={anomalyLevel > 60 ? 'animate-pulse' : 'animate-status-pulse'} 
+        />
         <StatusItem 
           color={llmStatus === 'online' ? 'bg-neon-green' : 'bg-text-ghost'} 
           text={llmStatus === 'online' ? 'LLM ONLINE' : 'LLM OFFLINE'} 

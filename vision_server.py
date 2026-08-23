@@ -10,6 +10,7 @@ import io
 import json
 import os
 import sqlite3
+import time
 from collections import defaultdict
 
 import httpx
@@ -396,14 +397,362 @@ async def constellation_stats():
         conn.close()
 
 
+@app.post("/api/constellations/backfill-edges")
+async def backfill_edges(
+    weight_threshold: float = 0.6,
+    k_neighbors: int = 5,
+    dry_run: bool = False,
+):
+    """
+    Build constellation_edges via cosine similarity of resonance_vec embeddings.
+    Maps rowids → node_ids through resonance_metadata and sages_constellations.
+    
+    Query params:
+      weight_threshold: minimum similarity weight to keep (default 0.6)
+      k_neighbors: number of nearest neighbors per embedding (default 5)
+      dry_run: if true, return predicted edges without writing (default false)
+    """
+    if not os.path.exists(DB_PATH):
+        return {"error": "database not found"}
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.enable_load_extension(True)
+    try:
+        import sqlite_vec
+        sqlite_vec.load(conn)
+    except Exception as e:
+        conn.close()
+        return {"error": f"sqlite-vec extension unavailable: {e}"}
+
+    try:
+        # Verify resonance_vec exists
+        vec_count = conn.execute("SELECT COUNT(*) FROM resonance_vec").fetchone()[0]
+        if vec_count == 0:
+            conn.close()
+            return {"error": "resonance_vec table is empty"}
+
+        # Create table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS constellation_edges ("
+            "    source_node_id TEXT NOT NULL,"
+            "    target_node_id TEXT NOT NULL,"
+            "    weight REAL NOT NULL,"
+            "    edge_type TEXT NOT NULL,"
+            "    timestamp INTEGER NOT NULL,"
+            "    PRIMARY KEY (source_node_id, target_node_id, edge_type)"
+            ")"
+        )
+
+        if not dry_run:
+            conn.execute(
+                "DELETE FROM constellation_edges WHERE edge_type = 'embedding_similarity'"
+            )
+            conn.commit()
+
+        # Map rowid → node_id via resonance_metadata and sages_constellations
+        mapping: dict[int, str] = {}
+        for row in conn.execute(
+            "SELECT r.rowid, s.node_id "
+            "FROM resonance_metadata m "
+            "JOIN sages_constellations s ON m.phi_index = s.phi_index "
+            "JOIN resonance_vec r ON m.rowid = r.rowid"
+        ):
+            mapping[row[0]] = row[1]
+
+        # Fetch all embeddings
+        embeddings = conn.execute(
+            "SELECT rowid, embedding FROM resonance_vec"
+        ).fetchall()
+
+        edges: list[tuple] = []
+        now = int(time.time() * 1000)
+
+        for i, (rowid, emb) in enumerate(embeddings):
+            if rowid not in mapping:
+                continue
+            source_node = mapping[rowid]
+
+            neighbors = conn.execute(
+                "SELECT rowid, vec_distance_cosine(embedding, ?) as dist "
+                "FROM resonance_vec WHERE rowid != ? ORDER BY dist ASC LIMIT ?",
+                (emb, rowid, k_neighbors),
+            ).fetchall()
+
+            for n_rowid, dist in neighbors:
+                if n_rowid not in mapping:
+                    continue
+                target_node = mapping[n_rowid]
+                weight = 1.0 - min(max(dist / 2.0, 0.0), 1.0)
+                if weight > weight_threshold:
+                    edges.append(
+                        (source_node, target_node, weight,
+                         "embedding_similarity", now)
+                    )
+
+        if not dry_run:
+            conn.executemany(
+                "INSERT OR REPLACE INTO constellation_edges "
+                "(source_node_id, target_node_id, weight, edge_type, timestamp) "
+                "VALUES (?, ?, ?, ?, ?)",
+                edges,
+            )
+            conn.commit()
+
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "embeddings_total": vec_count,
+            "mapped": len(mapping),
+            "edges_created": len(edges),
+            "weight_threshold": weight_threshold,
+            "k_neighbors": k_neighbors,
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/constellations/journal")
+async def constellation_journal(
+    limit: int = 100,
+    date_from: str = None,
+    date_to: str = None,
+):
+    """
+    Return journal entries from sages_constellations, joined with
+    resonance_metadata for the full text content.
+
+    Query params:
+      limit: max entries (default 100)
+      date_from: ISO date filter start (e.g. 2026-08-01)
+      date_to: ISO date filter end
+    """
+    if not os.path.exists(DB_PATH):
+        return {"entries": [], "meta": {"error": "database not found"}}
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        has_rm = (
+            conn.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE name='resonance_metadata' AND type='table'"
+            ).fetchone()
+            is not None
+        )
+
+        query = (
+            "SELECT sc.phi_index, sc.node_id, sc.data, sc.compressed,"
+            "       sc.timestamp, sc.dopamine, sc.cortisol, sc.pinned,"
+            "       sc.provenance"
+        )
+        if has_rm:
+            query += ", rm.text_content"
+        query += " FROM sages_constellations sc"
+        if has_rm:
+            query += " LEFT JOIN resonance_metadata rm ON sc.phi_index = rm.phi_index"
+
+        where_parts = []
+        params: list = []
+        if date_from:
+            # Convert date string to millisecond timestamp
+            try:
+                from_dt = int(
+                    __import__("datetime").datetime.strptime(
+                        date_from, "%Y-%m-%d"
+                    ).timestamp() * 1000
+                )
+                where_parts.append("sc.timestamp >= ?")
+                params.append(from_dt)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                to_dt = int(
+                    __import__("datetime").datetime.strptime(
+                        date_to, "%Y-%m-%d"
+                    ).timestamp() * 1000
+                ) + 86_400_000  # end of day
+                where_parts.append("sc.timestamp < ?")
+                params.append(to_dt)
+            except ValueError:
+                pass
+
+        if where_parts:
+            query += " WHERE " + " AND ".join(where_parts)
+
+        query += " ORDER BY sc.timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        rows = conn.execute(query, params).fetchall()
+
+        entries: list[dict] = []
+        for row in rows:
+            # Extract display text from data blob
+            display_text = ""
+            raw = row["data"]
+            if row["compressed"]:
+                display_text = "[compressed entry]"
+            elif raw:
+                try:
+                    text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+                    # Unwrap JSON envelope
+                    try:
+                        j = json.loads(text)
+                        display_text = j.get("data", text)
+                    except (json.JSONDecodeError, TypeError):
+                        display_text = text
+                except Exception:
+                    display_text = "[decode error]"
+
+            # Fallback text_content from resonance_metadata
+            alt_text = None
+            if has_rm and "text_content" in row.keys():
+                tc = row["text_content"]
+                if tc and tc != display_text:
+                    alt_text = tc
+
+            # Convert timestamp to date string
+            ts = row["timestamp"]
+            date_str = ""
+            if ts:
+                try:
+                    date_str = __import__("datetime").datetime.fromtimestamp(
+                        ts / 1000
+                    ).strftime("%Y-%m-%d")
+                except (ValueError, OSError):
+                    date_str = str(ts)
+
+            entries.append({
+                "phi_index": row["phi_index"],
+                "node_id": row["node_id"],
+                "display_text": display_text,
+                "alt_text": alt_text,
+                "timestamp": ts,
+                "date": date_str,
+                "dopamine": row["dopamine"],
+                "cortisol": row["cortisol"],
+                "pinned": bool(row["pinned"]),
+            })
+
+        total = conn.execute("SELECT COUNT(*) FROM sages_constellations").fetchone()[0]
+
+        return {
+            "entries": entries,
+            "meta": {
+                "total_constellations": total,
+                "returned": len(entries),
+                "date_from": date_from,
+                "date_to": date_to,
+                "source": "sages_constellations.db",
+            },
+        }
+    finally:
+        conn.close()
+
+
+
+# ── Sensor Telemetry ───────────────────────────────────────────────
+
+import threading
+import random
+import math
+
+_sensor_lock = threading.Lock()
+_sensor_state: dict = {
+    "emf": 14.2,       # mG
+    "temp": -8.4,      # °C (paranormal cold spot baseline)
+    "ion": 2847,       # ion/s
+    "geo": 48.3,       # µT geomagnetic flux
+    "anomaly": 62,     # %
+}
+
+# Drift parameters — tuned for realistic paranormal investigation feel
+_SENSOR_DRIFT = {
+    "emf": 0.3,    # max change per tick
+    "temp": 0.15,
+    "ion": 50,
+    "geo": 0.1,
+}
+
+_SENSOR_SPIKE_PROB = 0.02  # 2% chance of anomalous spike per tick
+
+
+def _start_sensor_tick():
+    """Background thread: drift sensor values with occasional spikes."""
+    while True:
+        time.sleep(0.5)
+        with _sensor_lock:
+            for key in ("emf", "temp", "ion", "geo"):
+                drift = (random.random() - 0.5) * 2 * _SENSOR_DRIFT[key]
+                _sensor_state[key] = round(_sensor_state[key] + drift, 1)
+
+            # Anomaly spikes
+            if random.random() < _SENSOR_SPIKE_PROB:
+                _sensor_state["emf"] += random.uniform(10, 45)
+                _sensor_state["temp"] -= random.uniform(3, 8)
+                _sensor_state["ion"] += random.randint(300, 1200)
+                _sensor_state["anomaly"] = min(100, _sensor_state["anomaly"] + random.randint(8, 25))
+
+            # Clamp
+            _sensor_state["emf"] = max(0, min(200, _sensor_state["emf"]))
+            _sensor_state["temp"] = max(-50, min(50, _sensor_state["temp"]))
+            _sensor_state["ion"] = max(0, min(99999, int(_sensor_state["ion"])))
+            _sensor_state["geo"] = max(0, min(100, round(_sensor_state["geo"], 1)))
+
+            # Anomaly decay
+            _sensor_state["anomaly"] = max(0, min(100, _sensor_state["anomaly"] - 1))
+
+
+# Start background sensor loop
+_sensor_thread = threading.Thread(target=_start_sensor_tick, daemon=True)
+_sensor_thread.start()
+
+
+class SensorReportRequest(BaseModel):
+    emf: float | None = None
+    temp: float | None = None
+    ion: int | None = None
+    geo: float | None = None
+    anomaly: int | None = None
+    source: str = "external"
+
+
+@app.get("/api/sensors/live")
+async def sensors_live():
+    """Return current sensor telemetry. Background-drifted or set via /report."""
+    with _sensor_lock:
+        return dict(_sensor_state)
+
+
+@app.post("/api/sensors/report")
+async def sensors_report(req: SensorReportRequest):
+    """Accept sensor data from external hardware. Partial updates supported."""
+    with _sensor_lock:
+        if req.emf is not None:
+            _sensor_state["emf"] = req.emf
+        if req.temp is not None:
+            _sensor_state["temp"] = req.temp
+        if req.ion is not None:
+            _sensor_state["ion"] = req.ion
+        if req.geo is not None:
+            _sensor_state["geo"] = req.geo
+        if req.anomaly is not None:
+            _sensor_state["anomaly"] = req.anomaly
+    return {"ok": True, "source": req.source, "state": dict(_sensor_state)}
+
+
 if __name__ == "__main__":
     import uvicorn
     print("NEXUS Vision Server starting on http://localhost:8765")
     print("Endpoints:")
-    print("  GET  /health                   — server + Ollama status")
-    print("  GET  /models                   — list Ollama models")
-    print("  POST /analyze                  — stream vision analysis")
-    print("  POST /analyze/snapshot         — full response as JSON")
-    print("  GET  /api/constellations/graph  — live memory lattice graph")
-    print("  GET  /api/constellations/stats  — constellation DB summary")
+    print("  GET  /health                     — server + Ollama status")
+    print("  GET  /models                     — list Ollama models")
+    print("  POST /analyze                    — stream vision analysis")
+    print("  POST /analyze/snapshot           — full response as JSON")
+    print("  GET  /api/constellations/graph   — live memory lattice graph")
+    print("  GET  /api/constellations/stats   — constellation DB summary")
+    print("  POST /api/constellations/backfill-edges — build embedding similarity edges")
+    print("  GET  /api/constellations/journal — journal entries from DB")
+    print("  GET  /api/sensors/live           — real-time sensor telemetry")
+    print("  POST /api/sensors/report         — accept sensor data from hardware")
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="warning")

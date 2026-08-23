@@ -15,3 +15,11 @@ imported.pre*
 data/memories/imported*.bak*
 data/sages_constellations.db.bak*
 data/seed_core.json
+
+# Python virtualenv + cache
+.venv/
+__pycache__/
+*.pyc
+
+# One-off utility scripts (superseded by API endpoints)
+backfill_edges.py
