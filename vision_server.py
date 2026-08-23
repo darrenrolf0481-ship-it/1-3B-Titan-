@@ -343,7 +343,8 @@ async def constellation_graph(limit: int = 50):
         if has_edges:
             placeholders = ",".join("?" for _ in seen_ids)
             q = (
-                f"SELECT source_node_id, target_node_id, weight "
+                f"SELECT source_node_id, target_node_id, weight, "
+                f"       status, birth_ts, last_reinforced_ts, hit_count, edge_type "
                 f"FROM constellation_edges "
                 f"WHERE source_node_id IN ({placeholders}) "
                 f"   OR target_node_id IN ({placeholders})"
@@ -352,7 +353,16 @@ async def constellation_graph(limit: int = 50):
             for er in conn.execute(q, id_list + id_list).fetchall():
                 if er[0] in seen_ids and er[1] in seen_ids:
                     links.append(
-                        {"source": er[0], "target": er[1], "weight": er[2]}
+                        {
+                            "source": er[0],
+                            "target": er[1],
+                            "weight": er[2],
+                            "status": er[3],
+                            "birth_ts": er[4],
+                            "last_reinforced_ts": er[5],
+                            "hit_count": er[6],
+                            "edge_type": er[7],
+                        }
                     )
 
         return {
@@ -397,6 +407,48 @@ async def constellation_stats():
         conn.close()
 
 
+@app.post("/api/constellations/edges/reinforce")
+async def reinforce_edge(
+    source_node_id: str,
+    target_node_id: str,
+):
+    """
+    Increment hit_count and set last_reinforced_ts for a constellation edge.
+    Used when a user clicks/traverses an edge in the lattice visualization.
+    """
+    if not os.path.exists(DB_PATH):
+        return {"error": "database not found"}
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        now = int(time.time() * 1000)
+        cursor = conn.execute(
+            "UPDATE constellation_edges "
+            "SET hit_count = hit_count + 1, last_reinforced_ts = ? "
+            "WHERE source_node_id = ? AND target_node_id = ?",
+            (now, source_node_id, target_node_id),
+        )
+        if cursor.rowcount == 0:
+            return {"ok": False, "reason": "edge not found", "rows_updated": 0}
+
+        conn.commit()
+
+        # Read back updated values
+        row = conn.execute(
+            "SELECT hit_count, last_reinforced_ts FROM constellation_edges "
+            "WHERE source_node_id = ? AND target_node_id = ?",
+            (source_node_id, target_node_id),
+        ).fetchone()
+
+        return {
+            "ok": True,
+            "hit_count": row[0],
+            "last_reinforced_ts": row[1],
+        }
+    finally:
+        conn.close()
+
+
 @app.post("/api/constellations/backfill-edges")
 async def backfill_edges(
     weight_threshold: float = 0.6,
@@ -431,7 +483,7 @@ async def backfill_edges(
             conn.close()
             return {"error": "resonance_vec table is empty"}
 
-        # Create table
+        # Create table (includes Phase 2 columns)
         conn.execute(
             "CREATE TABLE IF NOT EXISTS constellation_edges ("
             "    source_node_id TEXT NOT NULL,"
@@ -439,6 +491,10 @@ async def backfill_edges(
             "    weight REAL NOT NULL,"
             "    edge_type TEXT NOT NULL,"
             "    timestamp INTEGER NOT NULL,"
+            "    status TEXT NOT NULL DEFAULT 'active',"
+            "    birth_ts INTEGER NOT NULL DEFAULT 0,"
+            "    last_reinforced_ts INTEGER,"
+            "    hit_count INTEGER NOT NULL DEFAULT 0,"
             "    PRIMARY KEY (source_node_id, target_node_id, edge_type)"
             ")"
         )
@@ -486,14 +542,16 @@ async def backfill_edges(
                 if weight > weight_threshold:
                     edges.append(
                         (source_node, target_node, weight,
-                         "embedding_similarity", now)
+                         "embedding_similarity", now,
+                         "active", now, None, 0)
                     )
 
         if not dry_run:
             conn.executemany(
                 "INSERT OR REPLACE INTO constellation_edges "
-                "(source_node_id, target_node_id, weight, edge_type, timestamp) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "(source_node_id, target_node_id, weight, edge_type, timestamp, "
+                "status, birth_ts, last_reinforced_ts, hit_count) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 edges,
             )
             conn.commit()

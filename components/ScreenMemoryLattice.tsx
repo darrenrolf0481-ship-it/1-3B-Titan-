@@ -19,6 +19,11 @@ interface LinkData extends d3.SimulationLinkDatum<NodeData> {
   source: string | NodeData;
   target: string | NodeData;
   weight: number;
+  status?: string;
+  birth_ts?: number;
+  last_reinforced_ts?: number;
+  hit_count?: number;
+  edge_type?: string;
 }
 
 // Initial Neural Graph Nodes from SAGE-MAMA & SAGE-7 architecture
@@ -72,6 +77,8 @@ export default function ScreenMemoryLattice() {
   const [liveNodes, setLiveNodes] = useState<NodeData[]>([]);
   const [liveLinks, setLiveLinks] = useState<LinkData[]>([]);
   const [liveMeta, setLiveMeta] = useState<{ total_constellations: number; returned_nodes: number; has_edges_table: boolean } | null>(null);
+  const [renderKey, setRenderKey] = useState(0);
+  const edgeMetaRef = useRef<Map<string, { hit_count: number; last_reinforced_ts: number }>>(new Map());
 
   useEffect(() => {
     fetch(`${NEXUS_API}/api/constellations/graph?limit=40`)
@@ -104,7 +111,21 @@ export default function ScreenMemoryLattice() {
           }
 
           setLiveNodes(mapped);
-          setLiveLinks([...(data.links || []), ...bridgeLinks]);
+          // Merge live DB links with bridge links, preserving Phase 2 edge metadata
+          const mergedLinks: LinkData[] = [
+            ...(data.links || []).map((l: any) => ({
+              source: l.source,
+              target: l.target,
+              weight: l.weight,
+              status: l.status,
+              birth_ts: l.birth_ts,
+              last_reinforced_ts: l.last_reinforced_ts,
+              hit_count: l.hit_count,
+              edge_type: l.edge_type,
+            })),
+            ...bridgeLinks,
+          ];
+          setLiveLinks(mergedLinks);
           setLiveMeta(data.meta);
           setFetchStatus('live');
         } else {
@@ -184,7 +205,11 @@ export default function ScreenMemoryLattice() {
 
     // Deep clones to prevent simulation mutating original records
     const simNodes: NodeData[] = filteredData.nodes.map(d => ({ ...d }));
-    const simLinks: LinkData[] = filteredData.links.map(d => ({ ...d }));
+    const simLinks: LinkData[] = filteredData.links.map(d => {
+      const key = `${typeof d.source === 'string' ? d.source : (d.source as NodeData).id}::${typeof d.target === 'string' ? d.target : (d.target as NodeData).id}`;
+      const meta = edgeMetaRef.current.get(key);
+      return { ...d, hit_count: meta ? meta.hit_count : (d.hit_count ?? 0), last_reinforced_ts: meta ? meta.last_reinforced_ts : d.last_reinforced_ts };
+    });
 
     const simulation = d3.forceSimulation<NodeData>(simNodes)
       .force("link", d3.forceLink<NodeData, LinkData>(simLinks).id(d => d.id).distance(110))
@@ -197,9 +222,16 @@ export default function ScreenMemoryLattice() {
       .selectAll("line")
       .data(simLinks)
       .enter().append("line")
-      .attr("stroke", "rgba(0, 212, 255, 0.3)")
-      .attr("stroke-width", d => Math.max(1.5, d.weight * 0.8))
-      .attr("stroke-dasharray", d => d.weight > 3 ? "none" : "3 3");
+      .attr("stroke", d => (d.hit_count ?? 0) > 10 ? "rgba(0, 255, 136, 0.6)" : "rgba(0, 212, 255, 0.3)")
+      .attr("stroke-width", d => Math.max(1.5, d.weight * 0.8) + Math.min((d.hit_count ?? 0) * 0.15, 3))
+      .attr("stroke-dasharray", d => d.weight > 3 ? "none" : "3 3")
+      .append("title")
+      .text(d => {
+        const parts = [`weight: ${d.weight.toFixed(3)}`];
+        if (d.hit_count !== undefined) parts.push(`hits: ${d.hit_count}`);
+        if (d.status) parts.push(`status: ${d.status}`);
+        return parts.join(' | ');
+      });
 
     // Color mapper
     const getColor = (cat: string) => {
@@ -268,6 +300,27 @@ export default function ScreenMemoryLattice() {
     node.on("click", (event, d) => {
       event.stopPropagation();
       setSelectedNode(d);
+      // Find edges incident to this node and reinforce them
+      const incidentEdges = simLinks.filter(
+        l => (typeof l.source === 'string' ? l.source : (l.source as NodeData).id) === d.id
+          || (typeof l.target === 'string' ? l.target : (l.target as NodeData).id) === d.id
+      );
+      for (const edge of incidentEdges) {
+        const srcId = typeof edge.source === 'string' ? edge.source : (edge.source as NodeData).id;
+        const tgtId = typeof edge.target === 'string' ? edge.target : (edge.target as NodeData).id;
+        if (edge.edge_type) {
+          fetch(`${NEXUS_API}/api/constellations/edges/reinforce?source_node_id=${encodeURIComponent(srcId)}&target_node_id=${encodeURIComponent(tgtId)}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(res => {
+              if (res.ok) {
+                const key = `${srcId}::${tgtId}`;
+                edgeMetaRef.current.set(key, { hit_count: res.hit_count, last_reinforced_ts: res.last_reinforced_ts });
+                setRenderKey(k => k + 1);
+              }
+            })
+            .catch(() => {});
+        }
+      }
     });
 
     svg.on("click", () => {
@@ -287,7 +340,7 @@ export default function ScreenMemoryLattice() {
     return () => {
       simulation.stop();
     };
-  }, [filteredData]);
+  }, [filteredData, renderKey]);
 
   return (
     <div className="h-full flex flex-col md:flex-row gap-4 overflow-hidden relative font-rajdhani">

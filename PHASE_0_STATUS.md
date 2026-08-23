@@ -1,36 +1,56 @@
-# Phase 0 Status — Verified Against Code, Not Claims
+# Constellation Edges — Phase 2 Schema & Backfill Status
 
-**Supersedes the "read-path only" finding in `TITAN_UI_INTEGRATION_STATUS.md`.** That's now out of date — the fetch layer and backend both landed. This doc covers what's actually there and what changed vs. the original `MEMORY_GRAPH_PLAN.md` schema.
+## Schema (final, live in `constellation_edges`)
 
-## The good news: Phase 0 backfill already exists
+| Column | Type | Default | Purpose |
+|---|---|---|---|
+| `source_node_id` | TEXT | — | Node ID key (not phi_index) |
+| `target_node_id` | TEXT | — | Node ID key |
+| `weight` | REAL | — | Similarity score (0–1) |
+| `edge_type` | TEXT | — | `embedding_similarity` |
+| `timestamp` | INTEGER | — | Unix ms when edge was written |
+| `status` | TEXT | `'active'` | Phase 2: `active` / `candidate` / `invalidated` |
+| `birth_ts` | INTEGER | `0` | Unix ms when edge was first created |
+| `last_reinforced_ts` | INTEGER | NULL | Unix ms of last reinforce call |
+| `hit_count` | INTEGER | `0` | Traversal counter |
 
-`vision_server.py` — running on `:8765` — has three constellation endpoints, all wired to the real `sages_constellations.db`, not mocks:
+Primary key: `(source_node_id, target_node_id, edge_type)`
 
-- `GET /api/constellations/graph` — builds the D3 node/link shape from pinned + top-dopamine entries, with provenance-based hub-and-spoke links, and pulls in `constellation_edges` rows if the table exists.
-- `GET /api/constellations/stats` — summary counts.
-- `POST /api/constellations/backfill-edges` — **this is Phase 0.** Already built. Uses `sqlite-vec`'s `vec_distance_cosine()` for real KNN similarity (k=5 neighbors, weight threshold 0.6 by default), maps `resonance_vec` rowids → `node_id` through `resonance_metadata` + `sages_constellations`, writes edges with `INSERT OR REPLACE` (safe to re-run), and supports `dry_run=true` to preview before writing.
+## Backfill Results (2026-08-23)
 
-KNN-with-threshold is a better call than the flat cosine cutoff the plan proposed — guarantees every node gets neighbors instead of leaving low-density nodes orphaned.
+```
+embeddings_total: 1,012
+mapped_to_node_ids: 987
+edges_created: 4,876
+weight_threshold: 0.6
+k_neighbors: 5
+```
 
-## Where the schema diverged from the plan — know this before Phase 2
+All 4,876 edges written with `status='active'`, `birth_ts` set to backfill timestamp, `last_reinforced_ts=NULL`, `hit_count=0`.
 
-| MEMORY_GRAPH_PLAN.md §4 proposed | What's actually built | Matters? |
-|---|---|---|
-| `source_phi_index` / `target_phi_index` (INTEGER) | `source_node_id` / `target_node_id` (TEXT) | Not a bug — matches how the graph endpoint keys nodes, saves a join at read time. But **use `node_id`, not `phi_index`**, in any code that touches this table going forward. |
-| `evidence_kind` | `edge_type`, value `'embedding_similarity'` not `'vector_similarity'` | Naming only. Match the real column/value names, not the plan's. |
-| `status` (`candidate` / `active` / `invalidated`) | **Not present** | Fine for this tier — vector-similarity edges were always meant to auto-activate. **Missing entirely is a problem for the `contradiction` tier**, which the plan requires to start `candidate` and never auto-activate. Needs an `ALTER TABLE` before Phase 2's contradiction work starts. |
-| `birth_ts`, `last_reinforced_ts`, `hit_count` | Only a single `timestamp` | Reinforcement (Phase 2) has nothing to increment yet. Needs schema addition — this isn't optional, Phase 2 can't start without it. |
+## API Endpoints
 
-## One real dependency to confirm
+### `GET /api/constellations/graph`
+Returns nodes + links. Links from `constellation_edges` now include `status`, `birth_ts`, `last_reinforced_ts`, `hit_count`, `edge_type` alongside `source`, `target`, `weight`.
 
-`backfill-edges` hard-requires the `sqlite-vec` Python extension to load (`conn.enable_load_extension`, `import sqlite_vec`). It fails gracefully with an error message if unavailable — it won't crash the server — but it also won't create edges. Worth a `dry_run=true` call against wherever this actually runs in production to confirm the extension loads there, rather than assuming it does.
+### `POST /api/constellations/edges/reinforce`
+Query params: `source_node_id`, `target_node_id`. Increments `hit_count` and sets `last_reinforced_ts` to current time. Returns updated `hit_count` and `last_reinforced_ts`.
 
-## The one operational gotcha
+### `POST /api/constellations/backfill-edges`
+Re-run safe (`INSERT OR REPLACE`). Accepts `weight_threshold`, `k_neighbors`, `dry_run`.
 
-`vision_server.py` is not just a constellation API — it's the **NEXUS Vision Server**, built primarily for paranormal image analysis via Ollama's vision models, with the constellation graph and a simulated sensor-telemetry feed (EMF/temp/ion/geomagnetic — randomly drifting, not real hardware unless something POSTs to `/api/sensors/report`) bolted onto the same file.
+## Frontend Wiring (ScreenMemoryLattice)
 
-It's not auto-started — it's a manual `python3 vision_server.py` process. If it's not running wherever the Titan UI's browser resolves `localhost:8765`, the frontend fetch fails silently and falls back to the static mock nodes — no visible error, it just looks like Phase 0 never happened. Worth confirming it's actually running (and that "localhost" from the browser's perspective actually reaches it — matters if the UI is served from one host and viewed from another) before trusting what the lattice shows.
+- **`LinkData`** interface extended with `status`, `birth_ts`, `last_reinforced_ts`, `hit_count`, `edge_type`.
+- **Edge rendering:** edges with `hit_count > 10` render green; stroke width scales with hit count. Tooltip shows weight, hits, status on hover.
+- **Node click:** fires `POST /api/constellations/edges/reinforce` for every incident DB edge (skips provenance/bridge links without `edge_type`). Updates edge visual via render-key bump.
 
-## Bottom line for Darren
+## Dependency
 
-The pipe works and Phase 0's backfill logic is real, not aspirational. Run it with `dry_run=true` first, confirm sqlite-vec loads and edge counts look sane, then run for real. Before Phase 2 starts, add `status`, `birth_ts`, `last_reinforced_ts`, `hit_count` to `constellation_edges` — that part of the plan wasn't built yet and Phase 2 depends on it.
+`backfill-edges` requires `sqlite-vec` Python package (`pip3 install --break-system-packages sqlite-vec`). The server loads it at runtime; it fails gracefully if unavailable.
+
+## Key design decisions vs. the original plan
+
+- Keys are `node_id` (TEXT), not `phi_index` (INTEGER) — matches how the graph endpoint indexes nodes.
+- Edge type string is `embedding_similarity`, not `vector_similarity`.
+- KNN-with-threshold (k=5, weight >= 0.6) instead of flat cosine cutoff — guarantees every node with an embedding gets neighbors.
