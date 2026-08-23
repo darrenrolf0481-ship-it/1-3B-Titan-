@@ -70,6 +70,8 @@ const SensorCard = memo(function SensorCard({ def, valueRef, historyRef, isExpan
   const miniCanvasRef = useRef<HTMLCanvasElement>(null);
   const bigCanvasRef = useRef<HTMLCanvasElement>(null);
   const displayValRef = useRef<HTMLDivElement>(null);
+  const avgRef = useRef<HTMLDivElement>(null);
+  const peakRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const color = def.color;
@@ -85,6 +87,22 @@ const SensorCard = memo(function SensorCard({ def, valueRef, historyRef, isExpan
 
       if (displayValRef.current) {
         displayValRef.current.textContent = value.toFixed(1);
+      }
+
+      if (history) {
+        // Compute live avg & peak from history ring buffer
+        let sum = 0;
+        let peak = -Infinity;
+        let nonZero = 0;
+        for (let i = 0; i < history.length; i++) {
+          const v = history[i];
+          sum += v;
+          if (v > 0) nonZero++;
+          if (v > peak) peak = v;
+        }
+        const avg = nonZero > 0 ? sum / nonZero : 0;
+        if (avgRef.current) avgRef.current.textContent = avg.toFixed(1);
+        if (peakRef.current) peakRef.current.textContent = (peak === -Infinity ? 0 : peak).toFixed(1);
       }
 
       if (miniCanvasRef.current && history) {
@@ -130,8 +148,14 @@ const SensorCard = memo(function SensorCard({ def, valueRef, historyRef, isExpan
              <canvas ref={bigCanvasRef} className="w-full h-full" />
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatItem label="PEAK" value={(def.max * 0.8).toFixed(1)} color={def.color} />
-            <StatItem label="AVG" value={(def.max * 0.3).toFixed(1)} color="var(--color-text-dim)" />
+            <div className="border border-border-subtle/30 p-2 rounded bg-void/50">
+              <div className="text-[9px] text-text-ghost font-mono mb-1">PEAK</div>
+              <div ref={peakRef} className="font-orbitron font-bold" style={{ color: def.color }}>{def.max.toFixed(1)}</div>
+            </div>
+            <div className="border border-border-subtle/30 p-2 rounded bg-void/50">
+              <div className="text-[9px] text-text-ghost font-mono mb-1">AVG</div>
+              <div ref={avgRef} className="font-orbitron font-bold" style={{ color: 'var(--color-text-dim)' }}>0.0</div>
+            </div>
             <StatItem label="SIGNAL" value="STABLE" color="var(--color-neon-cyan)" />
             <StatItem label="ID" value={def.id.toUpperCase()} color="var(--color-text-ghost)" />
           </div>
@@ -298,6 +322,9 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
         if (!canvasRef.current) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d')!;
+
+        // Map freqRange[1] (max Hz, 0–44100) to a peak-shift factor 0..1
+        const rangeRatio = Math.max(0, Math.min(1, freqRange[1] / 44100));
         
         const draw = () => {
             if (typeof document !== 'undefined' && document.hidden) {
@@ -308,13 +335,14 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
             const w = canvas.width = canvas.offsetWidth;
             const h = canvas.height = canvas.offsetHeight;
             
-            // Generate new spectrum line
+            // Generate new spectrum line with peak positions affected by freq range
             const newLine = new Float32Array(resolution);
+            const peak1Pos = resolution * (0.1 + rangeRatio * 0.15);
+            const peak2Pos = resolution * (0.55 + rangeRatio * 0.25);
             for (let i = 0; i < resolution; i++) {
-                // Mock peak identification
                 const base = Math.random() * 0.2;
-                const peak1 = Math.exp(-Math.pow(i - resolution * 0.2, 2) / 20) * (0.4 + Math.random() * 0.3);
-                const peak2 = Math.exp(-Math.pow(i - resolution * 0.7, 2) / 50) * (0.2 + Math.random() * 0.2);
+                const peak1 = Math.exp(-Math.pow(i - peak1Pos, 2) / 20) * (0.4 + Math.random() * 0.3);
+                const peak2 = Math.exp(-Math.pow(i - peak2Pos, 2) / 50) * (0.2 + Math.random() * 0.2);
                 newLine[i] = Math.min(1, base + peak1 + peak2);
             }
             
@@ -338,7 +366,7 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
 
         const handle = requestAnimationFrame(draw);
         return () => cancelAnimationFrame(handle);
-    }, [resolution, colorMap]);
+    }, [resolution, colorMap, freqRange]);
 
     return <canvas ref={canvasRef} className="w-full h-full block" />;
 }

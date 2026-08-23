@@ -7,7 +7,6 @@ import Sidebar from '@/components/Sidebar';
 import Footer from '@/components/Footer';
 import { Loader2 } from 'lucide-react';
 
-// Transitioning to standard React Lazy Loading to decouple from Next.js server constraints
 const ScreenCommand = lazy(() => import('@/components/ScreenCommand'));
 const ScreenSensors = lazy(() => import('@/components/ScreenSensors'));
 const ScreenFeeds = lazy(() => import('@/components/ScreenFeeds'));
@@ -15,6 +14,8 @@ const ScreenEVP = lazy(() => import('@/components/ScreenEVP'));
 const ScreenNeural = lazy(() => import('@/components/ScreenNeural'));
 const ScreenTemporal = lazy(() => import('@/components/ScreenTemporal'));
 const ScreenConfig = lazy(() => import('@/components/ScreenConfig'));
+const ScreenJournal = lazy(() => import('@/components/ScreenJournal'));
+const ScreenMemoryLattice = lazy(() => import('@/components/ScreenMemoryLattice'));
 
 import { useNexusState } from '@/hooks/use-nexus-state';
 
@@ -34,9 +35,8 @@ function ScreenLoader() {
 export default function NexusPlatform() {
   const [activeScreen, setActiveScreen] = useState('neural');
   const [mounted, setMounted] = useState(false);
-  const { anomalyLevel, llmStatus, setLlmStatus, meters, historiesRef } = useNexusState();
+  const { anomalyLevel, llmStatus, setLlmStatus, meters, historiesRef, sensorPrompt, setSensorPrompt } = useNexusState();
 
-  // Ensure client-side only rendering to maintain React purity
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -53,8 +53,10 @@ export default function NexusPlatform() {
             case 'feeds': return <ScreenFeeds />;
             case 'evp': return <ScreenEVP />;
             case 'temporal': return <ScreenTemporal />;
-            case 'neural': return <ScreenNeural onStatusChange={setLlmStatus} />;
-            case 'config': return <ScreenConfig />;
+            case 'neural': return <ScreenNeural onStatusChange={setLlmStatus} meters={meters} anomalyLevel={anomalyLevel} sensorPrompt={sensorPrompt} />;
+            case 'journal': return <ScreenJournal />;
+            case 'lattice': return <ScreenMemoryLattice />;
+            case 'config': return <ScreenConfig sensorPrompt={sensorPrompt} onSensorPromptChange={setSensorPrompt} />;
             default: return <ScreenCommand />;
           }
         })()}

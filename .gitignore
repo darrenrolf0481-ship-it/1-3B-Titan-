@@ -5,3 +5,13 @@ coverage/
 *.log
 .env*
 !.env.example
+dist/
+*.tsbuildinfo
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
+*.bak*
+imported.pre*
+data/memories/imported*.bak*
+data/sages_constellations.db.bak*
+data/seed_core.json

@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Save, Trash2, Shield, Settings, Activity } from 'lucide-react';
 
-export default function ScreenConfig() {
+interface ScreenConfigProps {
+    sensorPrompt: boolean;
+    onSensorPromptChange: (val: boolean) => void;
+}
+
+export default function ScreenConfig({ sensorPrompt, onSensorPromptChange }: ScreenConfigProps) {
     const [toggles, setToggles] = useState({
         autoReconnect: true,
-        sensorPrompt: true,
         audioAlerts: false,
         autoSave: true
     });
@@ -34,7 +38,7 @@ export default function ScreenConfig() {
                     <Field label="DEFAULT MODEL" placeholder="llama3" />
                     <div className="space-y-2 pt-2">
                         <Toggle label="Auto-reconnect on startup" active={toggles.autoReconnect} onClick={() => toggle('autoReconnect')} />
-                        <Toggle label="Include sensor data in prompts" active={toggles.sensorPrompt} onClick={() => toggle('sensorPrompt')} />
+                        <Toggle label="Include sensor data in prompts" active={sensorPrompt} onClick={() => onSensorPromptChange(!sensorPrompt)} />
                     </div>
                  </div>
             </Panel>
@@ -98,7 +102,7 @@ function Toggle({ label, active, onClick }: { label: string, active: boolean, on
             <div 
                 onClick={onClick}
                 className={cn(
-                    "w-9 h-4.5 rounded-full relative cursor-pointer transition-all",
+                    "w-9 h-[18px] rounded-full relative cursor-pointer transition-all",
                     active ? "bg-neon-violet/40" : "bg-border-subtle"
                 )}
             >

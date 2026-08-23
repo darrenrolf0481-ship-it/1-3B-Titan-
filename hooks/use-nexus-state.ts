@@ -9,6 +9,7 @@ export interface SensorData {
 
 export function useNexusState() {
   const [anomalyLevel, setAnomalyLevel] = useState(62);
+  const [sensorPrompt, setSensorPrompt] = useState(true);
   const [llmStatus, setLlmStatus] = useState<'online' | 'offline' | 'scanning'>('offline');
   const [meters, setMeters] = useState<SensorData>({
     emf: 14.2,
@@ -76,6 +77,8 @@ export function useNexusState() {
     setLlmStatus,
     meters,
     historiesRef,
-    setAnomalyLevel
+    setAnomalyLevel,
+    sensorPrompt,
+    setSensorPrompt,
   };
 }

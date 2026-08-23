@@ -4,10 +4,11 @@ import {
   Activity,
   Video,
   Mic2,
-  Code,
   Zap,
   Settings,
-  Clock
+  Clock,
+  BookOpen,
+  Network
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,7 +23,9 @@ const SCREENS = [
   { id: 'feeds', label: 'VISUAL FEEDS', icon: Video, section: 'SCREENS' },
   { id: 'evp', label: 'EVP STATION', icon: Mic2, section: 'SCREENS' },
   { id: 'temporal', label: 'TEMPLE GATES', icon: Clock, section: 'SCREENS', badge: 0 },
-  { id: 'neural', label: 'NEXUS AI CHAT', icon: Zap, section: 'TOOLS' },
+  { id: 'neural', label: 'NEXUS AI CHAT', icon: Zap, section: 'SAGE CORE' },
+  { id: 'journal', label: 'SAGE JOURNAL', icon: BookOpen, section: 'SAGE CORE' },
+  { id: 'lattice', label: 'MEMORY LATTICE', icon: Network, section: 'SAGE CORE' },
   { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
 ];
 
@@ -41,13 +44,13 @@ export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: 
               key={screen.id}
               onClick={() => onScreenChange(screen.id)}
               className={cn(
-                "flex items-center gap-2.5 w-full px-4 py-2.5 bg-none border-none border-l-2 border-transparent cursor-pointer font-semibold text-sm text-text-dim tracking-[1px] transition-all relative group",
+                "flex items-center gap-2.5 w-full px-4 py-2 bg-none border-none border-l-2 border-transparent cursor-pointer font-semibold text-sm text-text-dim tracking-[1px] transition-all relative group",
                 activeScreen === screen.id && "bg-neon-violet/15 border-l-neon-violet text-text-bright"
               )}
             >
-              <screen.icon size={18} className={cn("opacity-70 group-hover:opacity-100", activeScreen === screen.id && "opacity-100")} />
+              <screen.icon size={17} className={cn("opacity-70 group-hover:opacity-100", activeScreen === screen.id && "opacity-100 text-neon-cyan")} />
               <span>{screen.label}</span>
-              {screen.badge && (
+              {screen.badge !== undefined && screen.badge > 0 && (
                 <span className="ml-auto px-1.5 py-0.5 bg-neon-red/20 border border-neon-red/40 rounded-[3px] font-mono text-[9px] text-neon-red">
                   {screen.badge}
                 </span>

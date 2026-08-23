@@ -8,7 +8,7 @@
   }
 
   .nexus-panel-header {
-    @apply flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-neon-violet/4;
+    @apply flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-neon-violet bg-opacity-5;
   }
 
   .nexus-panel-title {
