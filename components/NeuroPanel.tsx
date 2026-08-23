@@ -95,13 +95,37 @@ export default function NeuroPanel({
                 placeholder="sk-or-..."
                 className="w-full bg-black/50 border border-border-subtle px-2 py-1 font-mono text-[11px] text-text-bright outline-none focus:border-neon-violet rounded-sm transition-colors"
               />
-              <div className="text-[10px] text-text-ghost font-mono tracking-widest uppercase">MODEL</div>
+              <div className="text-[10px] text-text-ghost font-mono tracking-widest uppercase flex justify-between">
+                <span>MODEL</span>
+                <span className="text-neon-violet/50">FREE TIER</span>
+              </div>
               <input
+                list="openrouter-models"
                 value={openrouterModel}
                 onChange={e => onOpenrouterModelChange(e.target.value)}
                 placeholder="openrouter/auto"
                 className="w-full bg-black/50 border border-border-subtle px-2 py-1 font-mono text-[11px] text-text-bright outline-none focus:border-neon-violet rounded-sm transition-colors"
               />
+              <datalist id="openrouter-models">
+                <option value="openrouter/auto" />
+                <option value="stealth/ox-alpha" />
+                <option value="google/gemma-4-31b-it:free" />
+                <option value="nvidia/nemotron-3.5-lightning:free" />
+                <option value="liquid/lfm-2.5-2.6b:free" />
+                <option value="meta-llama/llama-3.1-8b-instruct:free" />
+              </datalist>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {['stealth/ox-alpha', 'google/gemma-4-31b-it:free', 'nvidia/nemotron-3.5-lightning:free'].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => onOpenrouterModelChange(m)}
+                    className="px-1.5 py-0.5 bg-white/5 border border-border-subtle rounded-sm font-mono text-[8.5px] text-text-ghost hover:text-neon-violet hover:border-neon-violet transition-colors truncate max-w-full"
+                    title={m}
+                  >
+                    {m.split('/').pop()}
+                  </button>
+                ))}
+              </div>
               <div className={cn("font-mono text-[10px]", openrouterKey.trim() ? "text-neon-green" : "text-text-ghost")}>
                 {openrouterKey.trim() ? '● KEY SET' : '● NO KEY'}
               </div>
