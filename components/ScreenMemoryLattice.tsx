@@ -3,6 +3,7 @@ import * as d3 from 'd3';
 import { cn } from '@/lib/utils';
 import { Network, Activity, Zap, Search, Shield, RefreshCw, Layers, Sparkles } from 'lucide-react';
 
+const NEXUS_API = 'http://localhost:8765';
 interface NodeData extends d3.SimulationNodeDatum {
   id: string;
   label: string;
@@ -66,8 +67,63 @@ export default function ScreenMemoryLattice() {
   const [maxCortisol, setMaxCortisol] = useState(1.0);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
+  // Live constellation data from backend
+  const [fetchStatus, setFetchStatus] = useState<'loading' | 'live' | 'fallback'>('loading');
+  const [liveNodes, setLiveNodes] = useState<NodeData[]>([]);
+  const [liveLinks, setLiveLinks] = useState<LinkData[]>([]);
+  const [liveMeta, setLiveMeta] = useState<{ total_constellations: number; returned_nodes: number; has_edges_table: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch(`${NEXUS_API}/api/constellations/graph?limit=40`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data => {
+        if (data.nodes?.length > 0) {
+          const mapped: NodeData[] = data.nodes.map((n: any) => ({
+            id: n.id,
+            label: n.label,
+            category: (n.category || 'memory') as NodeData['category'],
+            dopamine: n.dopamine,
+            cortisol: n.cortisol,
+            val: n.val || 12,
+            description: n.description,
+          }));
+
+          // Bridge links: connect live DB nodes to the architectural scaffold
+          const bridgeLinks: LinkData[] = [];
+          for (const n of data.nodes) {
+            const origin = n.origin || '';
+            const sync = n.sync_source || '';
+            if (origin === 'ADHD-SAGE' || sync === 'morning_light') {
+              bridgeLinks.push({ source: 'SAGE-CORE', target: n.id, weight: 2 });
+            } else if (origin === 'SAGE-MAMA') {
+              bridgeLinks.push({ source: 'OUTER-SWEEP', target: n.id, weight: 1 });
+            }
+            if (n.pinned) {
+              bridgeLinks.push({ source: 'INNER-SPIRAL', target: n.id, weight: 3 });
+            }
+          }
+
+          setLiveNodes(mapped);
+          setLiveLinks([...(data.links || []), ...bridgeLinks]);
+          setLiveMeta(data.meta);
+          setFetchStatus('live');
+        } else {
+          setFetchStatus('fallback');
+        }
+      })
+      .catch(() => setFetchStatus('fallback'));
+  }, []);
+
   const filteredData = useMemo(() => {
-    let nodes = BASE_NODES.filter(n => 
+    // Merge data sources: scaffold + overlays + live DB nodes (or static fallback)
+    const sourceNodes = fetchStatus === 'live'
+      ? [...BASE_NODES, ...liveNodes]
+      : BASE_NODES;
+    const sourceLinks = fetchStatus === 'live'
+      ? [...BASE_LINKS, ...liveLinks]
+      : BASE_LINKS;
+
+    let nodes = sourceNodes.filter(n => 
       n.dopamine >= minDopamine && 
       n.cortisol <= maxCortisol &&
       (categoryFilter === 'all' || n.category === categoryFilter) &&
@@ -75,14 +131,14 @@ export default function ScreenMemoryLattice() {
     );
 
     const nodeIds = new Set(nodes.map(n => n.id));
-    const links = BASE_LINKS.filter(l => {
+    const links = sourceLinks.filter(l => {
       const s = typeof l.source === 'string' ? l.source : l.source.id;
       const t = typeof l.target === 'string' ? l.target : l.target.id;
       return nodeIds.has(s) && nodeIds.has(t);
     });
 
     return { nodes, links };
-  }, [minDopamine, maxCortisol, categoryFilter, search]);
+  }, [fetchStatus, liveNodes, liveLinks, minDopamine, maxCortisol, categoryFilter, search]);
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || filteredData.nodes.length === 0) return;
@@ -244,6 +300,15 @@ export default function ScreenMemoryLattice() {
           </div>
           <span className="font-mono text-[9px] text-neon-violet bg-neon-violet/10 px-1.5 py-0.5 rounded border border-neon-violet/30">
             {filteredData.nodes.length} NODES
+          </span>
+          <span className={cn(
+            "font-mono text-[9px] px-1.5 py-0.5 rounded border",
+            fetchStatus === 'live' ? "text-neon-green bg-neon-green/10 border-neon-green/30" :
+            fetchStatus === 'loading' ? "text-neon-gold bg-neon-gold/10 border-neon-gold/30 animate-pulse" :
+            "text-text-ghost bg-white/5 border-border-subtle"
+          )}>
+            {fetchStatus === 'live' ? `LIVE · ${liveMeta?.total_constellations ?? '?'} TOTAL` :
+             fetchStatus === 'loading' ? 'LOADING...' : 'STATIC'}
           </span>
         </div>
 
