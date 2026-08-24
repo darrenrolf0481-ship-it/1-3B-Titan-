@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -7,7 +7,11 @@ interface HeaderProps {
   serverConnected: boolean;
 }
 
-export default function Header({ llmStatus, anomalyLevel, serverConnected }: HeaderProps) {
+/**
+ * Header component displays status indicators, title, system clock, and anomaly ticker.
+ * Optimization: Wrapped with React.memo so sensor tick updates (5Hz meters) do not trigger header re-renders unless anomalyLevel, llmStatus, or serverConnected actually changes.
+ */
+function Header({ llmStatus, anomalyLevel, serverConnected }: HeaderProps) {
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -72,6 +76,8 @@ export default function Header({ llmStatus, anomalyLevel, serverConnected }: Hea
     </header>
   );
 }
+
+export default memo(Header);
 
 function StatusItem({ color, text, pulse }: { color: string, text: string, pulse?: string }) {
   return (

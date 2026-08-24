@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 
 interface SmokeParticle {
   id: number;
@@ -9,7 +9,11 @@ interface SmokeParticle {
   delay: number;
 }
 
-export default function SmokeBackground() {
+/**
+ * SmokeBackground component renders animated smoke particles.
+ * Optimization: Wrapped with React.memo to prevent unnecessary re-renders when parent state updates.
+ */
+function SmokeBackground() {
   const [particles, setParticles] = useState<SmokeParticle[]>([]);
 
   useEffect(() => {
@@ -66,3 +70,5 @@ export default function SmokeBackground() {
     </div>
   );
 }
+
+export default memo(SmokeBackground);
