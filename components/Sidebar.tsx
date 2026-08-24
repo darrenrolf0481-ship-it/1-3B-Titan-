@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -29,7 +30,11 @@ const SCREENS = [
   { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
 ];
 
-export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
+/**
+ * Sidebar component handles navigation between screens and anomaly level display.
+ * Optimization: Wrapped with React.memo to prevent unnecessary re-renders when parent state updates (e.g. 5Hz sensor ticks).
+ */
+function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
   const sections = Array.from(new Set(SCREENS.map(s => s.section)));
 
   return (
@@ -80,3 +85,5 @@ export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: 
     </nav>
   );
 }
+
+export default memo(Sidebar);

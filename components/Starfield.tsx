@@ -1,6 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 
-export default function Starfield() {
+/**
+ * Starfield component renders an animated canvas background.
+ * Optimization: Wrapped with React.memo to prevent unnecessary re-renders when parent state (e.g. 5Hz sensor data) updates.
+ */
+function Starfield() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -64,3 +68,5 @@ export default function Starfield() {
     />
   );
 }
+
+export default memo(Starfield);
