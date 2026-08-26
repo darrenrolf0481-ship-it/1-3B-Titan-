@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -7,7 +7,9 @@ interface HeaderProps {
   serverConnected: boolean;
 }
 
-export default function Header({ llmStatus, anomalyLevel, serverConnected }: HeaderProps) {
+// ⚡ Bolt Optimization: Memoize Header to prevent unnecessary re-renders when parent
+// state (like 5Hz meter telemetry updates in NexusPlatform) changes without altering Header props.
+const Header = memo(function Header({ llmStatus, anomalyLevel, serverConnected }: HeaderProps) {
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -71,7 +73,9 @@ export default function Header({ llmStatus, anomalyLevel, serverConnected }: Hea
       />
     </header>
   );
-}
+});
+
+export default Header;
 
 function StatusItem({ color, text, pulse }: { color: string, text: string, pulse?: string }) {
   return (
