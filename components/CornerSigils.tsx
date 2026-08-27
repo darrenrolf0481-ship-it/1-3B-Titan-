@@ -1,6 +1,11 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
-export default function CornerSigils() {
+/**
+ * Memoized background decorative sigils.
+ * Prevents re-rendering during high-frequency parent state changes (e.g. sensor updates).
+ */
+const CornerSigils = memo(function CornerSigils() {
   return (
     <>
       <Sigil className="top-0 left-0" />
@@ -9,7 +14,9 @@ export default function CornerSigils() {
       <Sigil className="bottom-0 right-0 scale-[-1]" color="#00d4ff" />
     </>
   );
-}
+});
+
+export default CornerSigils;
 
 function Sigil({ className, color = "#9b30ff" }: { className?: string, color?: string }) {
   return (
