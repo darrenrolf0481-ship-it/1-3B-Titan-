@@ -1,6 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 
-export default function Starfield() {
+/**
+ * Memoized canvas starfield component.
+ * Prevents component re-rendering and effect re-runs when parent state updates.
+ */
+const Starfield = memo(function Starfield() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -63,4 +67,6 @@ export default function Starfield() {
       className="fixed inset-0 pointer-events-none z-0"
     />
   );
-}
+});
+
+export default Starfield;

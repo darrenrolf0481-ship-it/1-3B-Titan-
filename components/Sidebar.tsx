@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -29,12 +30,17 @@ const SCREENS = [
   { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
 ];
 
-export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
-  const sections = Array.from(new Set(SCREENS.map(s => s.section)));
+// Hoisted outside the render loop to prevent re-allocating SECTIONS on every render
+const SECTIONS = Array.from(new Set(SCREENS.map(s => s.section)));
 
+/**
+ * Memoized sidebar navigation component.
+ * Prevents re-rendering when unrelated state in parent updates.
+ */
+const Sidebar = memo(function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
   return (
     <nav className="relative flex flex-col col-span-3 py-3 bg-gradient-to-b from-[#060614]/97 to-[#04040f]/98 border-r border-border-subtle overflow-y-auto">
-      {sections.map(section => (
+      {SECTIONS.map(section => (
         <div key={section} className="mb-4">
           <div className="font-mono text-[9px] text-text-ghost tracking-[3px] px-4 py-2 border-none uppercase">
             {section}
@@ -79,4 +85,6 @@ export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: 
       <div className="absolute top-0 right-0 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-neon-violet via-neon-blue to-neon-violet to-transparent opacity-30" />
     </nav>
   );
-}
+});
+
+export default Sidebar;
