@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 
 interface SmokeParticle {
   id: number;
@@ -9,40 +9,28 @@ interface SmokeParticle {
   delay: number;
 }
 
+const PARTICLE_COUNT = 10;
+
+/**
+ * Performance Optimization:
+ * Instead of dynamically creating particles with setInterval/setTimeout state updates every 2s
+ * (which causes continuous main-thread JS execution, timer leaks, and React re-renders),
+ * we generate a static memoized set of particles with staggered negative animation delays.
+ * Pure CSS keyframe animation (`animate-smoke`) handles the infinite looping off the main JS thread.
+ */
 export default function SmokeBackground() {
-  const [particles, setParticles] = useState<SmokeParticle[]>([]);
-
-  useEffect(() => {
-    const createParticle = (isInitial = false) => {
-      const id = Date.now() + Math.random();
-      const duration = Math.random() * 12 + 10;
-      const newParticle: SmokeParticle = {
-        id,
-        left: Math.random() * 100,
-        drift: (Math.random() - 0.5) * 120,
+  const particles = useMemo<SmokeParticle[]>(() => {
+    return Array.from({ length: PARTICLE_COUNT }, (_, i) => {
+      const duration = 10 + (i * 1.5) % 12; // Durations between 10s and 22s
+      return {
+        id: i,
+        left: (i * 10 + 5) % 100, // Uniform distribution across screen width
+        drift: (i % 2 === 0 ? 1 : -1) * (30 + (i * 15) % 60),
         duration,
-        size: Math.random() * 200 + 100,
-        delay: isInitial ? Math.random() * -duration : 0,
+        size: 100 + (i * 20) % 200,
+        delay: -(i * (duration / PARTICLE_COUNT)), // Staggered negative delays for seamless initial state
       };
-
-      setParticles((prev) => [...prev, newParticle]);
-
-      setTimeout(() => {
-        setParticles((prev) => prev.filter((p) => p.id !== id));
-      }, newParticle.duration * 1000);
-    };
-
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      createParticle();
-    }, 2000);
-
-    // Initial particles
-    for (let i = 0; i < 8; i++) {
-        createParticle(true);
-    }
-
-    return () => clearInterval(interval);
+    });
   }, []);
 
   return (
