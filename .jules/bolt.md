@@ -1,0 +1,3 @@
+## 2025-05-18 - Replacing Timer-Based Particle Loops with Pure CSS Keyframe Animations
+**Learning:** Ambient background components using `setInterval` + `setTimeout` state loops cause continuous React main-thread re-renders (~30/min) and leak timers on unmount. Pure CSS keyframe animations with infinite iteration (`animation-iteration-count: infinite`) and staggered negative animation delays (`animation-delay: -Xs`) can achieve identical visual behavior with 0 React re-renders and 0 JS timer overhead.
+**Action:** When optimizing animated ambient elements, prefer static memoized DOM structures initialized with negative CSS animation delays over JS-managed state loops.
