@@ -1,6 +1,8 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
-export default function CornerSigils() {
+// Memoized to prevent re-rendering static SVG overlays on 5 Hz parent telemetry updates
+function CornerSigils() {
   return (
     <>
       <Sigil className="top-0 left-0" />
@@ -10,6 +12,8 @@ export default function CornerSigils() {
     </>
   );
 }
+
+export default memo(CornerSigils);
 
 function Sigil({ className, color = "#9b30ff" }: { className?: string, color?: string }) {
   return (
