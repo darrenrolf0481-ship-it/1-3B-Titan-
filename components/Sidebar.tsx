@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -29,7 +30,8 @@ const SCREENS = [
   { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
 ];
 
-export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
+// Memoized to prevent re-renders when parent telemetry state (meters) updates at 5 Hz
+function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
   const sections = Array.from(new Set(SCREENS.map(s => s.section)));
 
   return (
@@ -80,3 +82,5 @@ export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: 
     </nav>
   );
 }
+
+export default memo(Sidebar);
