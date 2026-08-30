@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, memo } from 'react';
 
 interface SmokeParticle {
   id: number;
@@ -9,10 +9,14 @@ interface SmokeParticle {
   delay: number;
 }
 
-export default function SmokeBackground() {
+// Memoized to prevent re-rendering when telemetry updates high-frequency parent state
+function SmokeBackground() {
   const [particles, setParticles] = useState<SmokeParticle[]>([]);
+  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(() => {
+    const timers = timersRef.current;
+
     const createParticle = (isInitial = false) => {
       const id = Date.now() + Math.random();
       const duration = Math.random() * 12 + 10;
@@ -27,9 +31,12 @@ export default function SmokeBackground() {
 
       setParticles((prev) => [...prev, newParticle]);
 
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
         setParticles((prev) => prev.filter((p) => p.id !== id));
       }, newParticle.duration * 1000);
+
+      timers.add(timer);
     };
 
     const interval = setInterval(() => {
@@ -39,10 +46,15 @@ export default function SmokeBackground() {
 
     // Initial particles
     for (let i = 0; i < 8; i++) {
-        createParticle(true);
+      createParticle(true);
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // Clear all active particle expiration timeouts on unmount to prevent memory leaks
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
   }, []);
 
   return (
@@ -66,3 +78,5 @@ export default function SmokeBackground() {
     </div>
   );
 }
+
+export default memo(SmokeBackground);

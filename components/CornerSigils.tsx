@@ -1,6 +1,8 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
-export default function CornerSigils() {
+// Memoized to avoid re-renders on high-frequency sensor ticks
+function CornerSigils() {
   return (
     <>
       <Sigil className="top-0 left-0" />
@@ -10,6 +12,8 @@ export default function CornerSigils() {
     </>
   );
 }
+
+export default memo(CornerSigils);
 
 function Sigil({ className, color = "#9b30ff" }: { className?: string, color?: string }) {
   return (
