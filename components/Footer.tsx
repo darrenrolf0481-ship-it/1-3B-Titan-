@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
   LayoutDashboard, 
@@ -28,7 +29,8 @@ const SCREENS = [
   { id: 'config', label: 'CONFIG', icon: Settings },
 ];
 
-export default function Footer({ activeScreen, onScreenChange }: FooterProps) {
+// Memoized to avoid re-rendering on high-frequency telemetry updates
+function Footer({ activeScreen, onScreenChange }: FooterProps) {
   return (
     <footer className="relative flex items-center justify-center gap-1.5 h-[72px] px-4 bg-[#060614]/98 border-t border-border-subtle z-20 overflow-x-auto">
       <div className="absolute top-0 left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-neon-violet via-neon-blue to-neon-violet to-transparent opacity-60" />
@@ -49,3 +51,5 @@ export default function Footer({ activeScreen, onScreenChange }: FooterProps) {
     </footer>
   );
 }
+
+export default memo(Footer);

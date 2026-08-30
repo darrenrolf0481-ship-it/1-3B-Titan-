@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 
-export default function Starfield() {
+// Memoized to prevent unnecessary re-renders when parent telemetry updates high-frequency state
+function Starfield() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -64,3 +65,5 @@ export default function Starfield() {
     />
   );
 }
+
+export default memo(Starfield);
