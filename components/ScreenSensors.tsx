@@ -314,7 +314,55 @@ export default function ScreenSensors({ externalHistoryRef }: { externalHistoryR
   );
 }
 
-function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: number, colorMap: string, freqRange: [number, number] }) {
+/**
+ * Fast Look-Up Table (LUT) for spectral colors (256 levels).
+ * Avoids allocating RGBA strings and repeated fillRect calls by directly setting Uint32 pixel values in ImageData.
+ */
+function createSpectralLUT(map: 'cyan' | 'magma' | 'plasma' | 'viridis'): Uint32Array {
+  const lut = new Uint32Array(256);
+  // Detect endianness for standard 32-bit RGBA ABGR packing in ImageData
+  const isLittleEndian = new Uint8Array(new Uint32Array([0x12345678]).buffer)[0] === 0x78;
+
+  for (let i = 0; i < 256; i++) {
+    const val = i / 255;
+    let r = 0, g = 0, b = 0, a = 255;
+
+    if (map === 'cyan') {
+      r = 0;
+      g = Math.floor(val * 255);
+      b = Math.floor(val * 255);
+      a = Math.floor(Math.min(1, val + 0.1) * 255);
+    } else if (map === 'magma') {
+      r = Math.floor(val * 255);
+      g = Math.floor(val * 100);
+      b = Math.floor(val * 50);
+      a = 255;
+    } else if (map === 'plasma') {
+      r = Math.floor(val * 255);
+      g = Math.floor((1 - val) * 255);
+      b = 255;
+      a = 255;
+    } else {
+      // Viridis approx
+      r = Math.floor((1 - val) * 60 + val * 253);
+      g = Math.floor((1 - val) * 1 + val * 231);
+      b = Math.floor((1 - val) * 78 + val * 37);
+      a = 255;
+    }
+
+    if (isLittleEndian) {
+      // Little-endian (ABGR in 32-bit int)
+      lut[i] = (a << 24) | (b << 16) | (g << 8) | r;
+    } else {
+      // Big-endian (RGBA in 32-bit int)
+      lut[i] = (r << 24) | (g << 16) | (b << 8) | a;
+    }
+  }
+
+  return lut;
+}
+
+function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: number, colorMap: 'cyan' | 'magma' | 'plasma' | 'viridis', freqRange: [number, number] }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const dataRef = useRef<Float32Array[]>([]);
 
@@ -322,6 +370,9 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
         if (!canvasRef.current) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d')!;
+
+        // Precompute color LUT for the active color mapping
+        const lut = createSpectralLUT(colorMap);
 
         // Map freqRange[1] (max Hz, 0–44100) to a peak-shift factor 0..1
         const rangeRatio = Math.max(0, Math.min(1, freqRange[1] / 44100));
@@ -332,9 +383,17 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
                 return;
             }
 
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight;
-            
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+            if (w === 0 || h === 0) {
+                requestAnimationFrame(draw);
+                return;
+            }
+
+            // Only update canvas dimensions when actually changed to prevent context reset & layout thrashing
+            if (canvas.width !== w) canvas.width = w;
+            if (canvas.height !== h) canvas.height = h;
+
             // Generate new spectrum line with peak positions affected by freq range
             const newLine = new Float32Array(resolution);
             const peak1Pos = resolution * (0.1 + rangeRatio * 0.15);
@@ -351,15 +410,25 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
                 dataRef.current.pop();
             }
 
-            ctx.clearRect(0, 0, w, h);
-            
-            const bw = w / resolution;
-            dataRef.current.forEach((line, y) => {
-                line.forEach((val, x) => {
-                    ctx.fillStyle = getSpectralColor(val, colorMap as any);
-                    ctx.fillRect(x * bw, y, bw + 1, 1);
-                });
-            });
+            // Perform single putImageData call via Uint32Array buffer for maximum performance
+            const imgData = ctx.createImageData(w, h);
+            const buf32 = new Uint32Array(imgData.data.buffer);
+
+            const numLines = dataRef.current.length;
+            const colScale = resolution / w;
+
+            for (let y = 0; y < numLines; y++) {
+                const line = dataRef.current[y];
+                const yOffset = y * w;
+                for (let x = 0; x < w; x++) {
+                    const sampleIdx = Math.floor(x * colScale);
+                    const val = line[sampleIdx];
+                    const lutIdx = Math.floor(val * 255);
+                    buf32[yOffset + x] = lut[lutIdx > 255 ? 255 : lutIdx];
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
 
             requestAnimationFrame(draw);
         };
@@ -369,28 +438,4 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
     }, [resolution, colorMap, freqRange]);
 
     return <canvas ref={canvasRef} className="w-full h-full block" />;
-}
-
-function getSpectralColor(val: number, map: 'cyan' | 'magma' | 'plasma' | 'viridis') {
-    if (map === 'cyan') {
-        const intensity = Math.floor(val * 255);
-        return `rgba(0, ${intensity}, ${intensity}, ${val + 0.1})`;
-    }
-    if (map === 'magma') {
-        const r = Math.floor(val * 255);
-        const g = Math.floor(val * 100);
-        const b = Math.floor(val * 50);
-        return `rgb(${r}, ${g}, ${b})`;
-    }
-    if (map === 'plasma') {
-        const r = Math.floor(val * 255);
-        const g = Math.floor((1 - val) * 255);
-        const b = 255;
-        return `rgb(${r}, ${g}, ${b})`;
-    }
-    // Viridis approx
-    const r = Math.floor((1-val) * 60 + val * 253);
-    const g = Math.floor((1-val) * 1 + val * 231);
-    const b = Math.floor((1-val) * 78 + val * 37);
-    return `rgb(${r}, ${g}, ${b})`;
 }

@@ -1,0 +1,3 @@
+## 2025-08-31 - Canvas Spectral Waterfall Uint32 Buffer & LUT Optimization
+**Learning:** Rendering continuous heatmaps/spectrograms using thousands of `ctx.fillRect()` calls and string allocations (`rgba(...)`) on every animation frame severely bottlenecked main-thread performance and caused DOM layout thrashing due to unconditional `canvas.width` assignments.
+**Action:** Pre-compute color maps into 256-entry Uint32 Look-Up Tables (LUTs) based on system endianness, guard canvas size updates to only trigger on dimension changes, and perform rendering using a single `ctx.putImageData()` call into a `Uint32Array` pixel buffer.
