@@ -9,38 +9,48 @@ interface SmokeParticle {
   delay: number;
 }
 
+interface SmokeParticleWithTimestamp extends SmokeParticle {
+  createdAt: number;
+}
+
 export default function SmokeBackground() {
-  const [particles, setParticles] = useState<SmokeParticle[]>([]);
+  const [particles, setParticles] = useState<SmokeParticleWithTimestamp[]>([]);
 
   useEffect(() => {
-    const createParticle = (isInitial = false) => {
-      const id = Date.now() + Math.random();
+    // Helper to generate particle data
+    const createParticleData = (isInitial = false): SmokeParticleWithTimestamp => {
       const duration = Math.random() * 12 + 10;
-      const newParticle: SmokeParticle = {
-        id,
+      return {
+        id: Math.random(),
         left: Math.random() * 100,
         drift: (Math.random() - 0.5) * 120,
         duration,
         size: Math.random() * 200 + 100,
         delay: isInitial ? Math.random() * -duration : 0,
+        createdAt: Date.now(),
       };
-
-      setParticles((prev) => [...prev, newParticle]);
-
-      setTimeout(() => {
-        setParticles((prev) => prev.filter((p) => p.id !== id));
-      }, newParticle.duration * 1000);
     };
 
+    // Performance Optimization: Batch initial particles into a single state update on mount
+    // to prevent 8 separate synchronous re-renders and eliminate multiple concurrent setTimeout timers.
+    const initialParticles = Array.from({ length: 8 }, () => createParticleData(true));
+    setParticles(initialParticles);
+
+    // Periodically spawn new particles and prune expired ones in a single interval callback
     const interval = setInterval(() => {
       if (document.hidden) return;
-      createParticle();
-    }, 2000);
 
-    // Initial particles
-    for (let i = 0; i < 8; i++) {
-        createParticle(true);
-    }
+      const now = Date.now();
+      const newParticle = createParticleData(false);
+
+      setParticles((prev) => {
+        // Filter out expired particles based on their duration and initial negative delay offset
+        const active = prev.filter(
+          (p) => now - p.createdAt < (p.duration + p.delay) * 1000
+        );
+        return [...active, newParticle];
+      });
+    }, 2000);
 
     return () => clearInterval(interval);
   }, []);
