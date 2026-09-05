@@ -314,6 +314,44 @@ export default function ScreenSensors({ externalHistoryRef }: { externalHistoryR
   );
 }
 
+// Pre-compute 256 RGBA entries for the active color map to avoid string allocations and parsing per pixel
+function buildColorLUT(map: 'cyan' | 'magma' | 'plasma' | 'viridis'): Uint8Array {
+  const lut = new Uint8Array(256 * 4);
+  for (let idx = 0; idx < 256; idx++) {
+    const val = idx / 255;
+    let r = 0, g = 0, b = 0, a = 255;
+    if (map === 'cyan') {
+      const intensity = idx;
+      r = 0;
+      g = intensity;
+      b = intensity;
+      a = Math.min(255, Math.floor((val + 0.1) * 255));
+    } else if (map === 'magma') {
+      r = idx;
+      g = Math.floor(val * 100);
+      b = Math.floor(val * 50);
+      a = 255;
+    } else if (map === 'plasma') {
+      r = idx;
+      g = Math.floor((1 - val) * 255);
+      b = 255;
+      a = 255;
+    } else {
+      // Viridis approx
+      r = Math.floor((1 - val) * 60 + val * 253);
+      g = Math.floor((1 - val) * 1 + val * 231);
+      b = Math.floor((1 - val) * 78 + val * 37);
+      a = 255;
+    }
+    const offset = idx * 4;
+    lut[offset] = r;
+    lut[offset + 1] = g;
+    lut[offset + 2] = b;
+    lut[offset + 3] = a;
+  }
+  return lut;
+}
+
 function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: number, colorMap: string, freqRange: [number, number] }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const dataRef = useRef<Float32Array[]>([]);
@@ -323,18 +361,33 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d')!;
 
+        // Performance Optimization:
+        // Pre-compute Color Lookup Table (LUT) to avoid ~38,400 string allocations per frame.
+        // Also use an offscreen canvas with ImageData to batch ~38,400 individual fillRect calls
+        // into a single ImageData pixel buffer update and one drawImage call per frame.
+        const lut = buildColorLUT(colorMap as 'cyan' | 'magma' | 'plasma' | 'viridis');
+
+        const offscreen = document.createElement('canvas');
+        const offCtx = offscreen.getContext('2d')!;
+
         // Map freqRange[1] (max Hz, 0–44100) to a peak-shift factor 0..1
         const rangeRatio = Math.max(0, Math.min(1, freqRange[1] / 44100));
-        
+
+        let handle: number;
+
         const draw = () => {
             if (typeof document !== 'undefined' && document.hidden) {
-                requestAnimationFrame(draw);
+                handle = requestAnimationFrame(draw);
                 return;
             }
 
             const w = canvas.width = canvas.offsetWidth;
             const h = canvas.height = canvas.offsetHeight;
-            
+            if (w === 0 || h === 0) {
+                handle = requestAnimationFrame(draw);
+                return;
+            }
+
             // Generate new spectrum line with peak positions affected by freq range
             const newLine = new Float32Array(resolution);
             const peak1Pos = resolution * (0.1 + rangeRatio * 0.15);
@@ -345,52 +398,48 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
                 const peak2 = Math.exp(-Math.pow(i - peak2Pos, 2) / 50) * (0.2 + Math.random() * 0.2);
                 newLine[i] = Math.min(1, base + peak1 + peak2);
             }
-            
+
             dataRef.current.unshift(newLine);
             if (dataRef.current.length > h) {
                 dataRef.current.pop();
             }
 
-            ctx.clearRect(0, 0, w, h);
-            
-            const bw = w / resolution;
-            dataRef.current.forEach((line, y) => {
-                line.forEach((val, x) => {
-                    ctx.fillStyle = getSpectralColor(val, colorMap as any);
-                    ctx.fillRect(x * bw, y, bw + 1, 1);
-                });
-            });
+            if (offscreen.width !== resolution || offscreen.height !== h) {
+                offscreen.width = resolution;
+                offscreen.height = h;
+            }
 
-            requestAnimationFrame(draw);
+            const imgData = offCtx.createImageData(resolution, h);
+            const pixels = imgData.data;
+            const lines = dataRef.current;
+            const numLines = lines.length;
+
+            for (let y = 0; y < numLines; y++) {
+                const line = lines[y];
+                const rowOffset = y * resolution * 4;
+                for (let x = 0; x < resolution; x++) {
+                    const val = line[x];
+                    const lutIdx = Math.min(255, Math.max(0, (val * 255) | 0)) * 4;
+                    const pixIdx = rowOffset + x * 4;
+                    pixels[pixIdx] = lut[lutIdx];
+                    pixels[pixIdx + 1] = lut[lutIdx + 1];
+                    pixels[pixIdx + 2] = lut[lutIdx + 2];
+                    pixels[pixIdx + 3] = lut[lutIdx + 3];
+                }
+            }
+
+            offCtx.putImageData(imgData, 0, 0);
+
+            ctx.clearRect(0, 0, w, h);
+            // Single draw call stretches offscreen canvas (resolution x h) to visible canvas (w x h)
+            ctx.drawImage(offscreen, 0, 0, w, h);
+
+            handle = requestAnimationFrame(draw);
         };
 
-        const handle = requestAnimationFrame(draw);
+        handle = requestAnimationFrame(draw);
         return () => cancelAnimationFrame(handle);
     }, [resolution, colorMap, freqRange]);
 
     return <canvas ref={canvasRef} className="w-full h-full block" />;
-}
-
-function getSpectralColor(val: number, map: 'cyan' | 'magma' | 'plasma' | 'viridis') {
-    if (map === 'cyan') {
-        const intensity = Math.floor(val * 255);
-        return `rgba(0, ${intensity}, ${intensity}, ${val + 0.1})`;
-    }
-    if (map === 'magma') {
-        const r = Math.floor(val * 255);
-        const g = Math.floor(val * 100);
-        const b = Math.floor(val * 50);
-        return `rgb(${r}, ${g}, ${b})`;
-    }
-    if (map === 'plasma') {
-        const r = Math.floor(val * 255);
-        const g = Math.floor((1 - val) * 255);
-        const b = 255;
-        return `rgb(${r}, ${g}, ${b})`;
-    }
-    // Viridis approx
-    const r = Math.floor((1-val) * 60 + val * 253);
-    const g = Math.floor((1-val) * 1 + val * 231);
-    const b = Math.floor((1-val) * 78 + val * 37);
-    return `rgb(${r}, ${g}, ${b})`;
 }
