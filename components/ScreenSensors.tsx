@@ -317,6 +317,12 @@ export default function ScreenSensors({ externalHistoryRef }: { externalHistoryR
 function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: number, colorMap: string, freqRange: [number, number] }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const dataRef = useRef<Float32Array[]>([]);
+    const paramChangedRef = useRef(true);
+
+    // Track parameter changes so we trigger a full historical redraw when props change
+    useEffect(() => {
+        paramChangedRef.current = true;
+    }, [resolution, colorMap, freqRange]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -332,9 +338,13 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
                 return;
             }
 
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight;
-            
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+            if (w === 0 || h === 0) {
+                requestAnimationFrame(draw);
+                return;
+            }
+
             // Generate new spectrum line with peak positions affected by freq range
             const newLine = new Float32Array(resolution);
             const peak1Pos = resolution * (0.1 + rangeRatio * 0.15);
@@ -351,15 +361,31 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
                 dataRef.current.pop();
             }
 
-            ctx.clearRect(0, 0, w, h);
-            
             const bw = w / resolution;
-            dataRef.current.forEach((line, y) => {
-                line.forEach((val, x) => {
-                    ctx.fillStyle = getSpectralColor(val, colorMap as any);
-                    ctx.fillRect(x * bw, y, bw + 1, 1);
+            const fullRedraw = paramChangedRef.current || canvas.width !== w || canvas.height !== h;
+
+            if (fullRedraw) {
+                // Resize or prop change requires full redraw with updated color palette / resolution
+                paramChangedRef.current = false;
+                canvas.width = w;
+                canvas.height = h;
+                ctx.clearRect(0, 0, w, h);
+                dataRef.current.forEach((line, y) => {
+                    const lineBw = w / line.length;
+                    line.forEach((val, x) => {
+                        ctx.fillStyle = getSpectralColor(val, colorMap as any);
+                        ctx.fillRect(x * lineBw, y, lineBw + 1, 1);
+                    });
                 });
-            });
+            } else {
+                // Bolt Optimization: Shift canvas bitmap down by 1px and draw only the single top row.
+                // Reduces canvas fill operations per frame from O(height * resolution) ~38,400 to O(resolution) ~128 (99.6% reduction).
+                ctx.drawImage(canvas, 0, 0, w, h - 1, 0, 1, w, h - 1);
+                for (let x = 0; x < resolution; x++) {
+                    ctx.fillStyle = getSpectralColor(newLine[x], colorMap as any);
+                    ctx.fillRect(x * bw, 0, bw + 1, 1);
+                }
+            }
 
             requestAnimationFrame(draw);
         };
