@@ -32,8 +32,13 @@ export default function ScreenEVP() {
                 requestAnimationFrame(animate);
                 return;
             }
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight;
+            // Performance optimization: Avoid re-allocating canvas width/height on every frame
+            // Mutating canvas.width clears context state and forces GPU texture re-allocation.
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+            if (w && canvas.width !== w) canvas.width = w;
+            if (h && canvas.height !== h) canvas.height = h;
+
             ctx.fillStyle = 'rgba(0, 0, 8, 0.3)';
             ctx.fillRect(0, 0, w, h);
 
@@ -78,8 +83,12 @@ export default function ScreenEVP() {
                 requestAnimationFrame(animate);
                 return;
             }
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight;
+            // Performance optimization: Only update canvas dimensions on layout changes
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+            if (w && canvas.width !== w) canvas.width = w;
+            if (h && canvas.height !== h) canvas.height = h;
+
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, w, h);
             const bw = w / bars - 1;
@@ -205,15 +214,25 @@ function FrequencyRadar() {
         if (!canvasRef.current) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d')!;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let animId: number | null = null;
+        let destroyed = false;
         
         const animate = () => {
+            if (destroyed) return;
             if (document.hidden) {
-                setTimeout(() => requestAnimationFrame(animate), 500);
+                timeoutId = setTimeout(() => {
+                    animId = requestAnimationFrame(animate);
+                }, 500);
                 return;
             }
 
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight || 180;
+            // Performance optimization: Avoid resetting canvas dimensions on every frame & track timer handles
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight || 180;
+            if (w && canvas.width !== w) canvas.width = w;
+            if (h && canvas.height !== h) canvas.height = h;
+
             ctx.fillStyle = 'rgba(0, 0, 8, 0.2)';
             ctx.fillRect(0, 0, w, h);
 
@@ -243,10 +262,18 @@ function FrequencyRadar() {
             ctx.fillStyle = '#9b30ff';
             ctx.fill();
 
-            return setTimeout(() => requestAnimationFrame(animate), 50);
+            timeoutId = setTimeout(() => {
+                animId = requestAnimationFrame(animate);
+            }, 50);
         };
-        const id = animate();
-        return () => clearTimeout(id!);
+
+        animate();
+
+        return () => {
+            destroyed = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            if (animId) cancelAnimationFrame(animId);
+        };
     }, []);
 
     return <canvas ref={canvasRef} className="w-full h-full block bg-black" />;
