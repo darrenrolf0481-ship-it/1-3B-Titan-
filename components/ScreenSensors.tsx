@@ -332,9 +332,12 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
                 return;
             }
 
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight;
-            
+            // Performance optimization: Avoid re-allocating canvas width/height on every frame
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+            if (w && canvas.width !== w) canvas.width = w;
+            if (h && canvas.height !== h) canvas.height = h;
+
             // Generate new spectrum line with peak positions affected by freq range
             const newLine = new Float32Array(resolution);
             const peak1Pos = resolution * (0.1 + rangeRatio * 0.15);
