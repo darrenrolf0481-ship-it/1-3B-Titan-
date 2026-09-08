@@ -28,30 +28,52 @@ export default function Starfield() {
     resize();
     window.addEventListener('resize', resize);
 
-    const animate = () => {
-      if (document.hidden) {
-        requestAnimationFrame(animate);
-        return;
-      }
+    let animationId: number;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      stars.forEach((s) => {
+    const animate = () => {
+      if (document.hidden) return;
+
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      // Performance Optimization: Set fillStyle ONCE outside the star loop and use
+      // globalAlpha instead of string interpolation `rgba(200, 200, 255, ${s.o})`.
+      // This eliminates ~12,000 string allocations per second at 60 FPS and reduces GC pressure.
+      ctx.fillStyle = 'rgb(200, 200, 255)';
+
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
         s.o += s.s * s.direction;
         if (s.o <= 0.05 || s.o >= 0.7) {
           s.direction *= -1;
         }
+        ctx.globalAlpha = s.o;
         ctx.beginPath();
-        ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 200, 255, ${s.o})`;
+        ctx.arc(s.x * width, s.y * height, s.r, 0, Math.PI * 2);
         ctx.fill();
-      });
-      requestAnimationFrame(animate);
+      }
+
+      animationId = requestAnimationFrame(animate);
     };
 
-    const animationId = requestAnimationFrame(animate);
+    // Performance Optimization: Completely stop requestAnimationFrame when tab is hidden,
+    // rather than endlessly queuing requestAnimationFrame callbacks on background tabs.
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(animationId);
+      } else {
+        resize();
+        animationId = requestAnimationFrame(animate);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    animationId = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       cancelAnimationFrame(animationId);
     };
   }, []);
