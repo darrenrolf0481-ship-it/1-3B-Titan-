@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import Starfield from '@/components/Starfield';
 import SmokeBackground from '@/components/SmokeBackground';
 import CornerSigils from '@/components/CornerSigils';
@@ -36,6 +36,11 @@ export default function NexusPlatform() {
   const [activeScreen, setActiveScreen] = useState('neural');
   const [mounted, setMounted] = useState(false);
   const { anomalyLevel, llmStatus, setLlmStatus, meters, historiesRef, sensorPrompt, setSensorPrompt, serverConnected } = useNexusState();
+
+  // Stable callback reference to prevent memoized child components (e.g. Footer) from re-rendering
+  const handleScreenChange = useCallback((id: string) => {
+    setActiveScreen(id);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -75,7 +80,7 @@ export default function NexusPlatform() {
       <div className="flex-1 grid grid-cols-11 overflow-hidden">
         <Sidebar 
           activeScreen={activeScreen} 
-          onScreenChange={setActiveScreen} 
+          onScreenChange={handleScreenChange}
           anomalyLevel={anomalyLevel}
         />
         
@@ -86,7 +91,7 @@ export default function NexusPlatform() {
         </main>
       </div>
       
-      <Footer activeScreen={activeScreen} onScreenChange={setActiveScreen} />
+      <Footer activeScreen={activeScreen} onScreenChange={handleScreenChange} />
     </div>
   );
 }

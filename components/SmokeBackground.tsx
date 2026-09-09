@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 
 interface SmokeParticle {
   id: number;
@@ -9,7 +9,8 @@ interface SmokeParticle {
   delay: number;
 }
 
-export default function SmokeBackground() {
+// Memoized to prevent unnecessary re-renders during high-frequency telemetry updates (5Hz)
+const SmokeBackground = memo(function SmokeBackground() {
   const [particles, setParticles] = useState<SmokeParticle[]>([]);
 
   useEffect(() => {
@@ -65,4 +66,6 @@ export default function SmokeBackground() {
       ))}
     </div>
   );
-}
+});
+
+export default SmokeBackground;
