@@ -1,0 +1,3 @@
+## 2025-02-18 - High-Frequency Telemetry Cascading Re-renders
+**Learning:** High-frequency state updates (such as the 5Hz local telemetry stream in `useNexusState`) at the root component level (`NexusPlatform`) trigger re-renders across all child components (background particle effects like `SmokeBackground`, canvas wrappers like `Starfield`, SVG overlays like `CornerSigils`, and navigation UI like `Footer`).
+**Action:** Memoize pure background/decor components and stable UI elements with `React.memo` and wrap handler callbacks in `useCallback` to prevent unnecessary VDOM diffing during continuous telemetry updates.
