@@ -35,16 +35,20 @@ export default function Starfield() {
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Performance optimization: Set fillStyle once outside the loop and use globalAlpha
+      // to eliminate 200 string allocations (`rgba(...)`) per frame at 60 FPS.
+      ctx.fillStyle = '#c8c8ff';
       stars.forEach((s) => {
         s.o += s.s * s.direction;
         if (s.o <= 0.05 || s.o >= 0.7) {
           s.direction *= -1;
         }
+        ctx.globalAlpha = s.o;
         ctx.beginPath();
         ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 200, 255, ${s.o})`;
         ctx.fill();
       });
+      ctx.globalAlpha = 1.0;
       requestAnimationFrame(animate);
     };
 
