@@ -1,0 +1,3 @@
+## 2025-05-18 - Canvas Waterfall Plot ImageData Blitting
+**Learning:** In canvas components like `SpectralWaterfall`, drawing thousands of small rectangles per frame (`fillRect`) with dynamic string-based CSS colors (`rgba(...)`) causes massive CPU and GC overhead (~38,400 string allocations and draw calls per frame). Additionally, setting `canvas.width` and `canvas.height` on every frame resets canvas state and triggers layout reflows.
+**Action:** Use Uint32 pre-computed palette lookup tables and write directly to an `ImageData` Uint32Array buffer, performing a single `putImageData` call per frame. Only update `canvas.width`/`height` when container dimensions actually change.
