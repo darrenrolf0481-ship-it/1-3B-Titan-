@@ -12,6 +12,22 @@ const SENSOR_DEFS = [
   { id: 'aud', name: 'ULF/VLF', unit: 'dB', icon: '🔊', color: 'var(--color-neon-red)', max: 120 },
 ];
 
+// Bolt Optimization: Cache resolved CSS variable colors to prevent getComputedStyle() reflow overhead on every frame
+const cssColorCache = new Map<string, string>();
+
+function resolveCssColor(color: string): string {
+  if (!color.startsWith('var')) return color;
+  const cached = cssColorCache.get(color);
+  if (cached) return cached;
+  if (typeof document === 'undefined') return '#ffffff';
+
+  const varName = color.slice(4, -1).trim();
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  const finalColor = resolved || '#ffffff';
+  cssColorCache.set(color, finalColor);
+  return finalColor;
+}
+
 function drawGraph(canvas: HTMLCanvasElement, data: Float32Array, color: string, height: number, labels = false, points = 60) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -44,7 +60,8 @@ function drawGraph(canvas: HTMLCanvasElement, data: Float32Array, color: string,
     ctx.lineTo(w, h);
     ctx.lineTo(0, h);
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    const c = color.startsWith('var') ? (typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue(color.slice(4, -1)) : '#ffffff') : color;
+    // Bolt Optimization: Use cached CSS variable lookup to eliminate getComputedStyle forced reflows
+    const c = resolveCssColor(color);
     grad.addColorStop(0, (c || '#ffffff') + '44');
     grad.addColorStop(1, 'transparent');
     ctx.fillStyle = grad;
@@ -332,8 +349,13 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
                 return;
             }
 
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight;
+            // Bolt Optimization: Only update canvas buffer size if dimensions actually change to avoid resetting context 60 times/sec
+            const offsetW = canvas.offsetWidth;
+            const offsetH = canvas.offsetHeight;
+            if (canvas.width !== offsetW && offsetW > 0) canvas.width = offsetW;
+            if (canvas.height !== offsetH && offsetH > 0) canvas.height = offsetH;
+            const w = canvas.width;
+            const h = canvas.height;
             
             // Generate new spectrum line with peak positions affected by freq range
             const newLine = new Float32Array(resolution);
