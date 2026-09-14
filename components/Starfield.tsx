@@ -28,27 +28,35 @@ export default function Starfield() {
     resize();
     window.addEventListener('resize', resize);
 
+    let animationId: number;
+
     const animate = () => {
       if (document.hidden) {
-        requestAnimationFrame(animate);
+        animationId = requestAnimationFrame(animate);
         return;
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Set static fill color once per frame outside the loop to avoid string allocations
+      ctx.fillStyle = 'rgb(200, 200, 255)';
+
       stars.forEach((s) => {
         s.o += s.s * s.direction;
         if (s.o <= 0.05 || s.o >= 0.7) {
           s.direction *= -1;
         }
+        // Use globalAlpha to avoid ~12,000 string allocations/sec from rgba() template strings
+        ctx.globalAlpha = s.o;
         ctx.beginPath();
         ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 200, 255, ${s.o})`;
         ctx.fill();
       });
-      requestAnimationFrame(animate);
+
+      // Update active animation ID so cancelAnimationFrame cleans up properly on unmount
+      animationId = requestAnimationFrame(animate);
     };
 
-    const animationId = requestAnimationFrame(animate);
+    animationId = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('resize', resize);
