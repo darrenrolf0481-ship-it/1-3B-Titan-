@@ -28,21 +28,28 @@ export default function Starfield() {
     resize();
     window.addEventListener('resize', resize);
 
+    // Performance optimization: Pre-calculate constants outside the 60fps render loop
+    // to eliminate repeated Math calculations and string allocations per star frame.
+    const TWO_PI = Math.PI * 2;
+
     const animate = () => {
       if (document.hidden) {
         requestAnimationFrame(animate);
         return;
       }
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
       stars.forEach((s) => {
         s.o += s.s * s.direction;
         if (s.o <= 0.05 || s.o >= 0.7) {
           s.direction *= -1;
         }
         ctx.beginPath();
-        ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 200, 255, ${s.o})`;
+        ctx.arc(s.x * width, s.y * height, s.r, 0, TWO_PI);
+        ctx.fillStyle = `rgba(200,200,255,${s.o})`;
         ctx.fill();
       });
       requestAnimationFrame(animate);
