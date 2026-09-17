@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 
 interface SmokeParticle {
   id: number;
@@ -9,40 +9,23 @@ interface SmokeParticle {
   delay: number;
 }
 
+// Optimization: Replace timer-based React state updates with a fixed set of CSS infinite-loop animated particles.
+// Previous implementation ran setInterval every 2s, creating/destroying DOM elements and triggering React re-renders.
+// This static pool of particles eliminates state updates, GC pressure, and component re-renders completely while keeping the same animation.
 export default function SmokeBackground() {
-  const [particles, setParticles] = useState<SmokeParticle[]>([]);
-
-  useEffect(() => {
-    const createParticle = (isInitial = false) => {
-      const id = Date.now() + Math.random();
-      const duration = Math.random() * 12 + 10;
-      const newParticle: SmokeParticle = {
-        id,
-        left: Math.random() * 100,
-        drift: (Math.random() - 0.5) * 120,
+  const particles = useMemo<SmokeParticle[]>(() => {
+    const count = 10;
+    return Array.from({ length: count }, (_, i) => {
+      const duration = 12 + (i * 1.5) % 10; // staggered durations between 12s and 22s
+      return {
+        id: i,
+        left: (i * 10 + Math.sin(i) * 5) % 100,
+        drift: ((i % 2 === 0 ? 1 : -1) * (30 + (i * 17) % 60)),
         duration,
-        size: Math.random() * 200 + 100,
-        delay: isInitial ? Math.random() * -duration : 0,
+        size: 150 + (i * 25) % 150,
+        delay: -(i * (duration / count)), // evenly staggered negative delay for instant seamless animation loop
       };
-
-      setParticles((prev) => [...prev, newParticle]);
-
-      setTimeout(() => {
-        setParticles((prev) => prev.filter((p) => p.id !== id));
-      }, newParticle.duration * 1000);
-    };
-
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      createParticle();
-    }, 2000);
-
-    // Initial particles
-    for (let i = 0; i < 8; i++) {
-        createParticle(true);
-    }
-
-    return () => clearInterval(interval);
+    });
   }, []);
 
   return (
@@ -58,6 +41,7 @@ export default function SmokeBackground() {
             background: 'radial-gradient(ellipse, rgba(80, 60, 140, 0.12) 0%, transparent 70%)',
             animationDuration: `${p.duration}s`,
             animationDelay: `${p.delay}s`,
+            animationIterationCount: 'infinite',
             // @ts-ignore
             '--drift': `${p.drift}px`,
           } as React.CSSProperties}
