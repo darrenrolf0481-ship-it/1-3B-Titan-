@@ -1,0 +1,3 @@
+## 2026-05-21 - Batch canvas draw calls and throttle ambient animation FPS
+**Learning:** Ambient background canvas animations running on `requestAnimationFrame` at 60-144+ FPS consume significant CPU/GPU resources and execute hundreds of individual canvas state changes per frame. Quantizing opacity values into discrete buckets allows batching draw calls into a single `beginPath()`/`fill()` block while throttling loop execution to ~30 FPS reduces frame workload without perceptible visual degradation.
+**Action:** When working with 2D HTML5 canvas starfields/particles, bucket draw states and throttle frame rate via delta timestamping.
