@@ -28,27 +28,61 @@ export default function Starfield() {
     resize();
     window.addEventListener('resize', resize);
 
-    const animate = () => {
-      if (document.hidden) {
-        requestAnimationFrame(animate);
-        return;
-      }
+    let lastFrameTime = 0;
+    const targetFps = 30;
+    const frameInterval = 1000 / targetFps;
+
+    const animate = (timestamp: number) => {
+      animationId = requestAnimationFrame(animate);
+
+      if (document.hidden) return;
+
+      // Throttle render loop to ~30 FPS to reduce GPU/CPU usage for subtle background ambient animation
+      const elapsed = timestamp - lastFrameTime;
+      if (elapsed < frameInterval) return;
+      lastFrameTime = timestamp - (elapsed % frameInterval);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      stars.forEach((s) => {
+
+      // Group stars into discrete alpha buckets (quantized to 0.05 step)
+      // Batch rendering reduces draw calls from 200/frame to ~13/frame and eliminates 200 string allocations/frame
+      const buckets: Map<number, typeof stars> = new Map();
+
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
         s.o += s.s * s.direction;
         if (s.o <= 0.05 || s.o >= 0.7) {
           s.direction *= -1;
         }
+
+        // Quantize opacity to 2 decimal places (step 0.05)
+        const quantizedAlpha = Math.round(s.o * 20) / 20;
+        let bucket = buckets.get(quantizedAlpha);
+        if (!bucket) {
+          bucket = [];
+          buckets.set(quantizedAlpha, bucket);
+        }
+        bucket.push(s);
+      }
+
+      const width = canvas.width;
+      const height = canvas.height;
+
+      buckets.forEach((bucketStars, alpha) => {
+        ctx.fillStyle = `rgba(200, 200, 255, ${alpha})`;
         ctx.beginPath();
-        ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 200, 255, ${s.o})`;
+        for (let i = 0; i < bucketStars.length; i++) {
+          const s = bucketStars[i];
+          const x = s.x * width;
+          const y = s.y * height;
+          ctx.moveTo(x + s.r, y);
+          ctx.arc(x, y, s.r, 0, Math.PI * 2);
+        }
         ctx.fill();
       });
-      requestAnimationFrame(animate);
     };
 
-    const animationId = requestAnimationFrame(animate);
+    let animationId = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('resize', resize);
