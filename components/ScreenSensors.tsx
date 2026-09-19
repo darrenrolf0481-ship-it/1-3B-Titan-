@@ -316,7 +316,6 @@ export default function ScreenSensors({ externalHistoryRef }: { externalHistoryR
 
 function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: number, colorMap: string, freqRange: [number, number] }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const dataRef = useRef<Float32Array[]>([]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -326,40 +325,53 @@ function SpectralWaterfall({ resolution, colorMap, freqRange }: { resolution: nu
         // Map freqRange[1] (max Hz, 0–44100) to a peak-shift factor 0..1
         const rangeRatio = Math.max(0, Math.min(1, freqRange[1] / 44100));
         
+        let lastW = 0;
+        let lastH = 0;
+
         const draw = () => {
             if (typeof document !== 'undefined' && document.hidden) {
                 requestAnimationFrame(draw);
                 return;
             }
 
-            const w = canvas.width = canvas.offsetWidth;
-            const h = canvas.height = canvas.offsetHeight;
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+
+            // Only update canvas internal dimensions when size changes to avoid clearing canvas buffer
+            if (w !== lastW || h !== lastH) {
+                canvas.width = w;
+                canvas.height = h;
+                lastW = w;
+                lastH = h;
+            }
+
+            if (w === 0 || h === 0) {
+                requestAnimationFrame(draw);
+                return;
+            }
             
-            // Generate new spectrum line with peak positions affected by freq range
-            const newLine = new Float32Array(resolution);
+            // ⚡ Bolt Optimization:
+            // Instead of re-drawing all historical rows from scratch (~38,400 fillRect calls and
+            // string allocations per frame for 300px height at 128 resolution), shift the canvas
+            // content down by 1px using hardware-accelerated drawImage, then render ONLY the new
+            // spectrum line at y = 0 (128 fillRect calls per frame). ~99.6% reduction in draw calls.
+            if (h > 1) {
+                ctx.drawImage(canvas, 0, 0, w, h - 1, 0, 1, w, h - 1);
+            }
+
+            const bw = w / resolution;
             const peak1Pos = resolution * (0.1 + rangeRatio * 0.15);
             const peak2Pos = resolution * (0.55 + rangeRatio * 0.25);
+
             for (let i = 0; i < resolution; i++) {
                 const base = Math.random() * 0.2;
                 const peak1 = Math.exp(-Math.pow(i - peak1Pos, 2) / 20) * (0.4 + Math.random() * 0.3);
                 const peak2 = Math.exp(-Math.pow(i - peak2Pos, 2) / 50) * (0.2 + Math.random() * 0.2);
-                newLine[i] = Math.min(1, base + peak1 + peak2);
-            }
-            
-            dataRef.current.unshift(newLine);
-            if (dataRef.current.length > h) {
-                dataRef.current.pop();
-            }
+                const val = Math.min(1, base + peak1 + peak2);
 
-            ctx.clearRect(0, 0, w, h);
-            
-            const bw = w / resolution;
-            dataRef.current.forEach((line, y) => {
-                line.forEach((val, x) => {
-                    ctx.fillStyle = getSpectralColor(val, colorMap as any);
-                    ctx.fillRect(x * bw, y, bw + 1, 1);
-                });
-            });
+                ctx.fillStyle = getSpectralColor(val, colorMap as any);
+                ctx.fillRect(i * bw, 0, bw + 1, 1);
+            }
 
             requestAnimationFrame(draw);
         };

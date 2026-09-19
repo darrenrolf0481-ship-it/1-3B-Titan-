@@ -1,0 +1,3 @@
+## 2025-05-18 - Canvas Waterfall Rendering Optimization
+**Learning:** In real-time 2D canvas waterfall/spectrogram displays, clearing and re-rendering all historical rows from an array on every animation frame causes O(height * resolution) draw calls (e.g. 38,400 fillRect calls + string allocations per frame for a 300px height at 128 resolution). Shifting the canvas buffer by 1px with `ctx.drawImage(canvas, 0, 0, w, h - 1, 0, 1, w, h - 1)` reduces this to a single hardware-accelerated copy plus 128 draw calls per frame (a 99.6% reduction).
+**Action:** When implementing canvas-based scrolling time-series visualizations or waterfalls, use canvas buffer shifting with `drawImage` instead of maintaining and re-rendering historical array frames.
