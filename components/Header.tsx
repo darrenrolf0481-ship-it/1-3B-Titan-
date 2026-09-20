@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -7,7 +7,9 @@ interface HeaderProps {
   serverConnected: boolean;
 }
 
-export default function Header({ llmStatus, anomalyLevel, serverConnected }: HeaderProps) {
+// ⚡ Bolt Optimization: Memoize Header to prevent unnecessary re-renders when high-frequency
+// sensor meters state updates occur (every 200ms in local mode) in parent components.
+function Header({ llmStatus, anomalyLevel, serverConnected }: HeaderProps) {
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -72,6 +74,8 @@ export default function Header({ llmStatus, anomalyLevel, serverConnected }: Hea
     </header>
   );
 }
+
+export default memo(Header);
 
 function StatusItem({ color, text, pulse }: { color: string, text: string, pulse?: string }) {
   return (

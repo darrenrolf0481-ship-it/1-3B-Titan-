@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -29,7 +30,9 @@ const SCREENS = [
   { id: 'config', label: 'CONFIGURATION', icon: Settings, section: 'SYSTEM' },
 ];
 
-export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
+// ⚡ Bolt Optimization: Memoize Sidebar to avoid unnecessary re-renders during high-frequency
+// sensor telemetry updates in NexusPlatform (meters update every 200ms).
+function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: SidebarProps) {
   const sections = Array.from(new Set(SCREENS.map(s => s.section)));
 
   return (
@@ -80,3 +83,5 @@ export default function Sidebar({ activeScreen, onScreenChange, anomalyLevel }: 
     </nav>
   );
 }
+
+export default memo(Sidebar);
