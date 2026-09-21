@@ -12,19 +12,54 @@ const SENSOR_DEFS = [
   { id: 'aud', name: 'ULF/VLF', unit: 'dB', icon: '🔊', color: 'var(--color-neon-red)', max: 120 },
 ];
 
+// Performance optimization: Cache CSS variables resolved via getComputedStyle
+// to avoid expensive layout style calculations on every animation frame (60fps x 8+ cards).
+const cssVarColorCache = new Map<string, string>();
+
+function resolveColor(color: string): string {
+    if (!color.startsWith('var')) return color;
+    if (cssVarColorCache.has(color)) return cssVarColorCache.get(color)!;
+
+    if (typeof document !== 'undefined') {
+        const varName = color.slice(4, -1).trim();
+        const resolved = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        if (resolved) {
+            cssVarColorCache.set(color, resolved);
+            return resolved;
+        }
+    }
+    return '#ffffff';
+}
+
+/**
+ * Optimized canvas graph renderer.
+ * Optimizations:
+ * 1. Reads clientWidth/clientHeight instead of offsetWidth/offsetHeight (or uses canvas dimensions)
+ *    to minimize style recalculation & layout reflow overhead.
+ * 2. Avoids `Array.from(data)` heap allocation on every frame by calculating max inline in O(N).
+ * 3. Uses cached CSS variable colors instead of calling getComputedStyle on every frame.
+ */
 function drawGraph(canvas: HTMLCanvasElement, data: Float32Array, color: string, height: number, labels = false, points = 60) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Set internal size to match CSS size
-    if (canvas.width !== canvas.offsetWidth) canvas.width = canvas.offsetWidth;
-    if (canvas.height !== canvas.offsetHeight) canvas.height = canvas.offsetHeight;
+    // Set internal size to match CSS size only when changed to avoid layout thrashing
+    const targetW = canvas.clientWidth || canvas.offsetWidth;
+    const targetH = canvas.clientHeight || canvas.offsetHeight;
+    if (canvas.width !== targetW && targetW > 0) canvas.width = targetW;
+    if (canvas.height !== targetH && targetH > 0) canvas.height = targetH;
 
     const w = canvas.width;
     const h = canvas.height;
+    if (w === 0 || h === 0) return;
+
     ctx.clearRect(0, 0, w, h);
 
-    const max = Math.max(...Array.from(data), 1);
+    // Calculate max inline without creating temporary Array or invoking Math.max(...Array.from())
+    let max = 1;
+    for (let i = 0; i < data.length; i++) {
+        if (data[i] > max) max = data[i];
+    }
     
     ctx.beginPath();
     ctx.strokeStyle = color;
@@ -32,19 +67,20 @@ function drawGraph(canvas: HTMLCanvasElement, data: Float32Array, color: string,
     ctx.lineJoin = 'round';
 
     const step = w / (points - 1);
-    data.forEach((val, i) => {
+    for (let i = 0; i < data.length; i++) {
+        const val = data[i];
         const x = i * step;
         const y = h - (val / max) * (h * 0.8) - (h * 0.1);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
-    });
+    }
     ctx.stroke();
 
     // Area fill
     ctx.lineTo(w, h);
     ctx.lineTo(0, h);
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    const c = color.startsWith('var') ? (typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue(color.slice(4, -1)) : '#ffffff') : color;
+    const c = resolveColor(color);
     grad.addColorStop(0, (c || '#ffffff') + '44');
     grad.addColorStop(1, 'transparent');
     ctx.fillStyle = grad;
