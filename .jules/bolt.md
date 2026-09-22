@@ -1,0 +1,3 @@
+## 2026-09-22 - Precomputed Opacity Buckets for 60FPS Canvas Path Batching
+**Learning:** Full-screen canvas particle animations like `Starfield` often suffer from GC pauses and GPU fill call overhead due to per-particle string creation (`rgba(...)`) and separate `beginPath()`/`fill()` calls per particle. Grouping particles into precomputed opacity buckets and using pre-allocated arrays reduces draw/fill calls from N to K buckets (e.g. 200 -> 12) while completely eliminating string and array allocations during 60FPS animation frames.
+**Action:** When optimizing Canvas2D particle or background effects, bucket properties like opacity/color, pre-allocate bucket arrays, and batch subpaths (`moveTo` + `arc`) to issue a single `fill()` per bucket.
