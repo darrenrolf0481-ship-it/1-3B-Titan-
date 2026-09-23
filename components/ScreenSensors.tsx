@@ -12,40 +12,64 @@ const SENSOR_DEFS = [
   { id: 'aud', name: 'ULF/VLF', unit: 'dB', icon: '🔊', color: 'var(--color-neon-red)', max: 120 },
 ];
 
+// Cache for CSS variable resolutions to avoid getComputedStyle overhead on every rAF
+const colorCache = new Map<string, string>();
+
+function resolveColor(color: string): string {
+  if (!color.startsWith('var(')) return color;
+  let resolved = colorCache.get(color);
+  if (!resolved && typeof document !== 'undefined') {
+    const varName = color.slice(4, -1).trim();
+    resolved = getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '#ffffff';
+    colorCache.set(color, resolved);
+  }
+  return resolved || '#ffffff';
+}
+
 function drawGraph(canvas: HTMLCanvasElement, data: Float32Array, color: string, height: number, labels = false, points = 60) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Set internal size to match CSS size
-    if (canvas.width !== canvas.offsetWidth) canvas.width = canvas.offsetWidth;
-    if (canvas.height !== canvas.offsetHeight) canvas.height = canvas.offsetHeight;
+    const cw = canvas.offsetWidth;
+    const ch = canvas.offsetHeight;
+    if (cw === 0 || ch === 0) return;
+
+    // Set internal canvas size only when element size changes to avoid resetting context state
+    if (canvas.width !== cw) canvas.width = cw;
+    if (canvas.height !== ch) canvas.height = ch;
 
     const w = canvas.width;
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const max = Math.max(...Array.from(data), 1);
-    
+    // Compute max value directly on Float32Array without array allocation
+    let max = 1;
+    const len = data.length;
+    for (let i = 0; i < len; i++) {
+      if (data[i] > max) max = data[i];
+    }
+
     ctx.beginPath();
     ctx.strokeStyle = color;
     ctx.lineWidth = labels ? 2 : 1;
     ctx.lineJoin = 'round';
 
     const step = w / (points - 1);
-    data.forEach((val, i) => {
+    for (let i = 0; i < len; i++) {
+        const val = data[i];
         const x = i * step;
         const y = h - (val / max) * (h * 0.8) - (h * 0.1);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
-    });
+    }
     ctx.stroke();
 
     // Area fill
     ctx.lineTo(w, h);
     ctx.lineTo(0, h);
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    const c = color.startsWith('var') ? (typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue(color.slice(4, -1)) : '#ffffff') : color;
-    grad.addColorStop(0, (c || '#ffffff') + '44');
+    const resolvedColor = resolveColor(color);
+    grad.addColorStop(0, resolvedColor + '44');
     grad.addColorStop(1, 'transparent');
     ctx.fillStyle = grad;
     ctx.fill();
