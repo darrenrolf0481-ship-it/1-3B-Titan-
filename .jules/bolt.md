@@ -1,0 +1,3 @@
+## 2026-05-21 - Canvas Waterfall Pixel Rendering Bottleneck
+**Learning:** In high-frequency 2D canvas visualization components (such as `SpectralWaterfall` in `ScreenSensors.tsx`), setting `canvas.width = canvas.offsetWidth` every frame resets the Canvas2D context state and backing buffer. Combining this with 10,000+ `fillRect()` calls and color string allocations (`rgba(...)`) creates severe CPU and garbage collection bottlenecks.
+**Action:** Check dimensions before modifying canvas width/height properties, and write pixels directly into an `ImageData` `Uint32Array` buffer before calling `putImageData()` once per frame.
